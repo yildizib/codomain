@@ -1,0 +1,34 @@
+schema: spec-driven
+
+context: |
+  Codomain is a remote MCP publishing platform for static websites. Users bring
+  their own AI assistant. V1 uses one account, one site, one free subdomain, one
+  logical MCP connection, and at most one active MCP API key. Submission creates
+  a deployment; validated content is sealed with a manifest digest; user approval
+  creates an immutable version; publish and rollback create publication records
+  and atomically update the live pointer. All repository content must be English.
+  Follow AGENTS.md and the specialized project documents it references.
+
+rules:
+  proposal:
+    - State V1 scope and explicit non-goals.
+    - Identify affected product, security, architecture, and MCP boundaries.
+  design:
+    - Preserve sealed-artifact integrity, explicit lifecycle transitions, tenant isolation, and control-plane/content-plane separation.
+    - Record architecturally significant choices in DECISIONS.md through a separate approved task.
+  specs:
+    - Write testable requirements and scenarios in English.
+    - Include authorization, failure, retry, and cross-account isolation behavior when relevant.
+  tasks:
+    - Include focused tests and final full-suite validation.
+    - Include a relevant build when runtime, packaging, deployment, generated output, or user-facing behavior changes.
+
+operations:
+  apply:
+    guidance:
+      - Do not mark a task complete until its implementation and task-relevant validation pass.
+      - Run the full available test suite at the end of the change and run the relevant build when required by CODING_STANDARDS.md.
+      - If final validation fails, do not report the change as complete and reopen any affected task.
+  archive:
+    guidance:
+      - Do not archive with incomplete tasks, failed validation, or an undocumented verification gap unless the user explicitly accepts that exception.
