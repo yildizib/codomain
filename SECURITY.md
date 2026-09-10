@@ -1,195 +1,133 @@
 # Security Guidelines
 
-Canonical security requirements for accounts, MCP, uploads, previews, and
-publication. Lifecycle mechanics are defined in [Architecture](ARCHITECTURE.md).
+Required trust boundaries for accounts, MCP and user-controlled content.
+Implementation checklists and test scenarios belong in the relevant OpenSpec
+change; they must preserve these controls. Lifecycle mechanics belong in
+[Architecture](ARCHITECTURE.md).
 
 ## Authentication and account security
 
-- Store passwords using a strong, modern, adaptive password-hashing algorithm.
-- Never store or log plaintext passwords.
-- Apply rate limits and abuse detection to registration, login, password
-  changes, API-key operations, and MCP authentication.
-- Invalidate or re-authenticate sensitive sessions after password changes when
-  appropriate.
-- Use secure, HttpOnly, and appropriately scoped cookies for browser sessions.
-- Protect state-changing browser requests against CSRF.
-- Avoid revealing whether an email address is registered in authentication
-  error messages.
+Protect browser sessions with secure, HttpOnly, appropriately scoped cookies,
+CSRF protection and controlled expiry/revocation. Re-authenticate or invalidate
+sensitive sessions after password changes as appropriate. Use adaptive password
+hashing; never retain plaintext passwords. Rate-limit and monitor account and
+credential operations without revealing whether an email is registered.
 
 ## API keys and MCP authorization
 
-- Generate API keys with a cryptographically secure random source.
-- Store only a secure hash or otherwise non-recoverable representation of an
-  API key when the plaintext is not required after creation.
-- Display a newly created or rotated key only once, when it can be safely
-  delivered to the authenticated account owner.
-- Scope every key to exactly one account and its V1 site.
-- Revoked or rotated keys must stop authorizing new requests within the
-  documented maximum propagation window; the design target is the next
-  authorization decision.
-- Never place API keys in logs, analytics, URLs, screenshots, exception
-  messages, committed files, generated documentation, or platform-stored
-  connection templates. User-managed AI clients must store keys through their
-  supported secret facility.
-- Authenticate and authorize every MCP operation server-side. Do not trust
-  account or site identifiers supplied by the client.
-- Return generic authorization failures that do not disclose account or site
-  existence.
-- Require recent authentication for API key creation, rotation, and revocation.
+Generate cryptographically random keys, store non-recoverable representations,
+and show plaintext only when issued. Require recent authentication for key
+creation, rotation and revocation. Every MCP operation resolves account/site
+ownership server-side; client identifiers are not authority.
+
+Revoked or rotated keys must stop authorizing requests within the documented
+propagation window, targeting the next authorization decision. Never place keys
+in URLs, logs, analytics, screenshots, exceptions, repository files or generated
+connection documents. External clients use their supported secret store.
 
 ## Account and site isolation
 
-- Enforce ownership checks for every dashboard, MCP, preview, deployment,
-  version, and rollback operation.
-- Use defense-in-depth isolation at the application, storage, and delivery
-  layers.
-- Ensure object identifiers cannot be used to access another account's data
-  through enumeration or substitution.
-- Treat subdomains, preview URLs, and published URLs as untrusted input when
-  resolving ownership or routing requests.
-- Do not allow one site's files, scripts, metadata, or deployment records to be
-  read or modified through another site's APIs.
+Enforce ownership across application, storage and delivery boundaries. Client
+IDs, paths, subdomains and URLs cannot authorize access to another account.
+Errors, resource lookups and routing must not disclose private account/resource
+existence. Preview capabilities authorize only their specific content.
 
 ## Subdomain security
 
-- Validate requested subdomain names with a strict allowlist of safe characters
-  and length limits.
-- Reserve platform, administrative, support, security, and commonly abused
-  subdomain names so they cannot be claimed by users.
-- Treat subdomain ownership as account-bound metadata, not as proof of
-  authorization by itself.
-- Define a clear lifecycle for released, deleted, suspended, or renamed
-  subdomains before allowing reuse.
-- Avoid exposing private account information through subdomain lookup,
-  availability checks, DNS behavior, or error messages.
+Use an allowlist for names and lengths, reserve platform/administrative/abuse-prone
+names, and keep ownership account-bound. Define release, suspension, rename and
+reuse behavior before supporting those transitions. Availability checks and DNS
+must not expose private account information.
 
 ## Static-file and upload security
 
-- Reject path traversal, absolute paths, invalid encodings, and ambiguous path
-  normalization.
-- Normalize and validate every submitted path before storage.
-- Prevent uploaded files from writing outside the site's assigned storage
-  namespace.
-- Define and enforce limits for request size, file count, individual file size,
-  total deployment size, and archive expansion.
-- Handle archives defensively, including protection against archive bombs and
-  duplicate-file collisions.
-- Treat uploaded HTML, CSS, JavaScript, and assets as untrusted content.
-- Quarantine unvalidated bytes; allow preview only after validation and sealing
-  under the [deployment lifecycle](ARCHITECTURE.md#deployment-lifecycle).
-- Prevent uploaded content from accessing platform credentials, internal
-  metadata, private network services, or other tenants.
-- Use safe content-disposition and content-type handling when serving files.
+Treat all submitted content as untrusted. Normalize and validate paths before
+storage; reject traversal, absolute or ambiguous paths, unsafe encodings, links,
+special files and duplicate normalized paths. Enforce request, file-count,
+file-size, total-size and archive-expansion limits, including archive-bomb defenses.
+
+Quarantine unvalidated content and prevent writes outside the assigned namespace.
+Customer code must not execute in platform processing or access credentials,
+private services, metadata endpoints or other tenants. Delivery must use safe
+content types and content-disposition handling.
 
 ### Isolated scanning
 
-- Freeze upload input before validation. Reject traversal, symbolic/hard links,
-  special files, duplicate normalized paths and unsafe archive expansion.
-- Run archive parsing and ClamAV scanning with bounded CPU, memory, disk and time,
-  no platform credentials, and access limited to the current job input. Do not
-  execute customer code. Restrict network access; isolate signature updating.
-- Scan all content that will be served. Scanning limits, timeout, unreadable or
-  encrypted archives and stale signatures must never be interpreted as clean.
-  Define numeric limits/freshness policy before implementation and align them
-  with upload limits. Infrastructure failure blocks preview and may be retried.
-- Record scan engine/signature identity, time, outcome and artifact digest.
-  Ensure scanned bytes cannot change before sealing, approval or delivery.
-- ClamAV is a layer, not a guarantee against phishing, external scripts or abuse.
-  Keep isolation and takedown controls regardless of scan success. Define later
-  rescan handling without mutating retained versions; disable access if needed.
-- Do not expose the scanner socket or NFS to public networks. Mount only sealed
-  content read-only on Nginx; never mount quarantine on the content VPS.
+- Freeze input before bounded, isolated validation and scanning. Limit CPU,
+  memory, disk and time; provide only the job's input, no platform credentials,
+  restricted network access and separately controlled signature updates.
+- Scan every file to be served. Timeouts, exceeded limits, unreadable/encrypted
+  archives and stale signatures are not clean results. Block preview until
+  validation succeeds; infrastructure failures may be retried.
+- Retain engine/signature identity, time, result and artifact digest. Scanned
+  content must not change before sealing, approval or delivery.
+- ClamAV is proposed in [ADR-013](docs/decisions/ADR-013.md), not a final engine
+  selection. Antivirus never replaces isolation or abuse handling. Later rescans
+  may disable access but must not mutate retained versions.
+- Keep scanner interfaces and NFS private. Nginx may mount only sealed content
+  read-only, never quarantine; other writers must also respect sealing.
 
 ## Messaging integrity
 
-- Restrict application DB roles to SELECT/INSERT on outbox and delivery-journal
-  tables; no UPDATE or DELETE through normal application roles. A future
-  administrative retention policy requires an explicit decision.
-- Authenticate producers and consumers to MQ, restrict queue/topic permissions,
-  validate message schemas and source identity, and recheck ownership and valid
-  lifecycle transitions before effects. A forged payload actor is not authority.
-- Preserve account/key identity and correlation metadata without raw credentials
-  or capability secrets in logs. Protect sensitive message payloads.
-- Revocation must not rely solely on delayed account-event delivery. Define and
-  enforce authorization freshness for queued approval/publication/rollback work
-  before implementation so stale credentials cannot bypass revocation.
+Enforce outbox and delivery-journal immutability with database privileges: normal
+application roles may read/insert, never update/delete. Administrative retention
+requires a separate decision. Authenticate MQ producers/consumers, restrict their
+permissions and validate message schemas and source identity.
+
+Recheck ownership and valid lifecycle transitions before effects. Queued sensitive
+operations need an authorization-freshness policy so delayed account events cannot
+bypass key revocation. Preserve safe actor/correlation identities; neither raw
+credentials nor preview capability secrets belong in logs or message metadata.
 
 ## Preview and publishing integrity
 
-- Serve previews and published user content from content-plane origins that do
-  not share the dashboard's registrable domain, origin, or session cookies.
-- Keep dashboard cookies host-only and use the `__Host-` prefix where supported.
-- Do not expose secrets or internal service endpoints to previewed sites.
-- Require explicit user approval for publication, with approval/publication and
-  rollback requests entering through authenticated MCP rather than Dashboard.
-  Define the human-confirmation proof before implementing these operations; an
-  authenticated API key or client-supplied boolean alone is not proof of review.
-- Bind approval to the sealed artifact's manifest digest; approval must not
-  silently apply to changed, newer, or different content.
-- Make versions immutable after creation.
-- Record who approved, published, or rolled back a version, together with
-  timestamps and relevant deployment identifiers.
-- Rollback must select a known immutable version and must not rewrite its
-  contents.
-- Prevent unapproved previews from becoming live through predictable URLs,
-  race conditions, retries, or direct API calls.
-- Make preview capability URLs time-limited and revocable, prevent them from
-  granting control-plane authority, and avoid recording their secret tokens in
-  logs or analytics.
+Serve user content on origins and registrable domains separate from Dashboard,
+with no dashboard cookies, credentials or control-plane authority. Dashboard
+cookies remain host-only and use the `__Host-` prefix where supported.
+
+Explicit user approval must bind the exact sealed artifact digest. An API key or
+client-supplied boolean alone is not proof of human review; define the MCP
+confirmation mechanism before implementing approval/publication/rollback.
+Preserve [immutable versions and publication guarantees](ARCHITECTURE.md#publication-and-rollback),
+including protection against changed content, races, retries and direct URL access.
+
+Previews use expiring, revocable capabilities for one artifact/version. Prevent
+secret leakage through logs, analytics and referrers. Regeneration creates a new
+capability; it grants no site-management authority.
 
 ## Published-site abuse and takedown
 
-- Treat published user sites as externally visible, user-controlled content.
-- Monitor and respond to abuse patterns such as phishing, malware delivery,
-  impersonation, spam, illegal content, or Terms and Conditions violations.
-- Provide a documented path to suspend, unpublish, or disable access to abusive
-  content while preserving the audit trail needed for review.
-- Separate abuse handling from normal rollback so enforcement actions cannot be
-  bypassed by publishing or restoring another version.
-- Ensure platform staff tools for suspension, takedown, or restoration require
-  strong authorization and produce audit records.
+Provide monitored, auditable suspension/takedown for malware, phishing and other
+abuse or Terms violations. Staff enforcement/restoration requires strong
+authorization. Publishing or rollback must not bypass enforcement restrictions;
+retain the evidence required for investigation.
 
 ## Web and infrastructure security
 
-- Enforce HTTPS for all externally reachable dashboard, MCP, preview, and
-  published traffic in production.
-- Configure strict security headers for the dashboard, including a carefully
-  reviewed Content Security Policy.
-- Configure restrictive CORS for control-plane APIs and never trust a content
-  origin as a dashboard origin.
-- Review preview and published-site headers separately from dashboard headers
-  because user-provided static sites may require a different policy.
-- Keep platform services, databases, object storage, and deployment workers on
-  private networks where possible.
-- Use least-privilege service identities and separate production credentials
-  from development credentials.
-- Protect internal metadata services and prevent server-side request forgery
-  from user-controlled URLs or deployment integrations.
-- Keep dependencies and base images patched and scan them regularly.
-- Encrypt sensitive data in transit and at rest according to its sensitivity.
+Require production HTTPS, least-privilege service identities, private backend
+networks and separate environment credentials. Protect metadata services against
+SSRF. Encrypt sensitive data in transit/at rest and maintain patched, scanned
+dependencies and base images.
+
+Review Dashboard CSP/security headers and restrictive control-plane CORS separately
+from user-content delivery headers. Never trust a content origin as a Dashboard
+origin. Runtime routing must preserve these boundaries during failures.
 
 ## Logging, monitoring, and response
 
-- Log security-relevant events without logging secrets or full sensitive
-  payloads.
-- Monitor authentication failures, key abuse, unusual publishing volume,
-  repeated path-validation failures, and cross-tenant authorization failures.
-- Make audit records resistant to accidental modification and retain only what
-  is needed for security, support, and compliance.
-- Define an incident process for credential compromise, tenant isolation bugs,
-  malicious uploads, and unauthorized publication.
-- Revoke affected keys and contain affected deployments before investigating
-  broader impact.
+Keep attributable, modification-resistant history of security and site operations,
+including actors, targets, timestamps and outcomes. Exclude secrets and full
+sensitive payloads; define retention for support, security and compliance needs.
+Monitor authentication/key abuse, unusual publishing, invalid uploads and
+cross-account access attempts. Define incident handling that revokes compromised
+keys and contains affected deployments before broader investigation.
 
 ## Secure development requirements
 
-- Add tests for authentication, authorization, tenant isolation, key lifecycle,
-  path validation, preview approval, and rollback behavior.
-- Review security impact when changing MCP tools, file handling, URL routing,
-  deployment workers, or version state transitions.
-- Keep secrets out of source control and use environment or secret-management
-  facilities for runtime configuration.
-- Do not weaken these requirements to make a test, preview, or deployment pass.
+Review security impact and test affected authentication, authorization, isolation,
+credential, upload, preview and publication boundaries under
+[Coding standards](CODING_STANDARDS.md#validation). Use managed secrets or environment
+configuration. Never weaken controls merely to make a test or deployment pass.
 
 ## Reporting a vulnerability
 

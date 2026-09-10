@@ -1,39 +1,24 @@
 # Decisions
 
-This document records architecturally significant decisions for Codomain.
+Decision history and rationale. Start with [Architecture](ARCHITECTURE.md) to
+understand the current system; read individual ADRs when their reasoning matters.
 
-Use the linked records for decisions that shape system structure, ownership boundaries,
-authorization, MCP contracts, deployment flow, storage, preview delivery,
-published delivery, versioning, rollback, isolation, and runtime behavior.
-
-Each record follows a lightweight Architecture Decision Record shape:
-
-- Status
-- Date
-- Context
-- Decision drivers
-- Considered options
-- Decision
-- Consequences
-- Revisit when
-
-Operational policies such as Git Flow, commit style, documentation language,
-and coding conventions belong in `CONTRIBUTING.md`, `CODING_STANDARDS.md`, and
-`AGENTS.md`, not here.
-
-Accepted decisions must not be silently rewritten, whether or not implementation
-has started. Add a new record that identifies the earlier decision as
-superseded. The edits made on 2026-09-10 clarified this initial, unimplemented
-baseline before this governance rule took effect.
+New ADRs record status/date, context, drivers, options, decision, consequences and
+revisit conditions. Preserve accepted decision bodies; record significant changes
+in a new ADR and add explicit supersession links. Operational rules belong in
+[Contributing](CONTRIBUTING.md) and [Coding standards](CODING_STANDARDS.md).
 
 ## Current decision precedence
 
-[ADR-011](docs/decisions/ADR-011.md) supersedes ADR-004's Dashboard approval and
-MCP publication prohibition. Its artifact-bound approval guarantees remain.
-ADR-011 also refines interaction references in ADR-007/010 without weakening
-content isolation. ADR-012 extends ADR-009 with durable messaging, and ADR-013
-refines ADR-005 storage/retention. Earlier accepted text is retained as history;
-use these newer records wherever the earlier descriptions conflict.
+| Current record | Effect on earlier records |
+| --- | --- |
+| [ADR-011](docs/decisions/ADR-011.md) | Replaces ADR-004's Dashboard/MCP publication boundary and refines ADR-007/010 interactions. Approval and isolation guarantees remain. |
+| [ADR-012](docs/decisions/ADR-012.md) | Extends ADR-009 with application-owned messaging and Worker recovery. |
+| [ADR-013](docs/decisions/ADR-013.md) | Refines ADR-005 with NFS storage and permanent-version retention. |
+
+Earlier records remain historical evidence where newer decisions supersede them.
+Accepted records may include explicitly labeled proposals; those proposals are
+not selected technology or product behavior.
 
 ## Records
 
@@ -47,7 +32,6 @@ use these newer records wherever the earlier descriptions conflict.
 - [ADR-008: Keep V1 runtime static-site only](docs/decisions/ADR-008.md)
 - [ADR-009: Model deployment and publication as explicit state machines](docs/decisions/ADR-009.md)
 - [ADR-010: Use time-limited capability URLs for isolated previews](docs/decisions/ADR-010.md)
-
 - [ADR-011: Route all site operations through MCP](docs/decisions/ADR-011.md)
 - [ADR-012: Use Spring Boot applications with application-owned MQ delivery](docs/decisions/ADR-012.md)
 - [ADR-013: Store validated artifacts on NFS and serve through separate Nginx](docs/decisions/ADR-013.md)

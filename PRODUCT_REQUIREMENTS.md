@@ -10,90 +10,41 @@ MCP connection. V1 serves individuals who bring their own AI client.
 
 ## Out of scope for V1
 
-V1 does not include:
-
-- AI model hosting or AI assistant features.
-- Visual drag-and-drop site building.
-- General-purpose deployment workflows.
-- Dynamic application hosting.
-- Multiple sites per account.
-- Multiple subdomains per account.
-- Custom domains.
-- Project-specific MCP connections.
-- Team members.
-- Client-level access.
-- Agency workflows.
-- Multi-step approval workflows.
-- White-label publishing.
-- Direct AI-agent publication without explicit user approval.
-- Account self-deletion.
-- Customer-provided dynamic server-side execution, databases, background workers,
-  and serverless functions.
+V1 excludes AI hosting, visual site building, dynamic application hosting and
+customer server-side code, databases, workers or serverless functions. It also
+excludes multiple sites/subdomains, custom domains, project-scoped MCP connections,
+teams, client/agency access, multi-step approvals, white-label publishing,
+autonomous publication without user approval, and account self-deletion.
 
 ## Getting started
 
-```mermaid
-flowchart TB
-  subgraph account["1 · Account"]
-    A{"Have an account?"} -->|No| B["Register and accept Terms"]
-    A -->|Yes| C["Sign in"]
-    B --> D["Receive or choose a free subdomain"]
-    D --> E["Open dashboard"]
-    C --> E
-  end
-  subgraph connect["2 · Connect your AI"]
-    E --> F["Create an API key"]
-    F --> G["Download integration README and connection details"]
-    G --> H["Configure AI client and its secret store"]
-  end
-  classDef actor fill:#dbeafe,stroke:#2563eb,color:#172554;
-  classDef platform fill:#ede9fe,stroke:#7c3aed,color:#2e1065;
-  class A,B,C,H actor;
-  class D,E,F,G platform;
-```
-
-Adapted from the supplied Excalidraw concept. Subdomain selection and account
-verification remain open decisions. See [README](README.md#how-it-works) for
-the subsequent publishing journey.
+Register and accept Terms, receive or choose a free subdomain, then use Dashboard
+to create an API key and configure an external AI client. Continue with the
+[publishing journey](README.md#how-it-works). Subdomain selection and account
+verification policies remain open.
 
 ## Requirements and acceptance
 
 ### Account and registration
 
-- The system must allow registration with email, first name, last name, and
-  password.
-- The system must require Terms and Conditions acceptance before account
-  creation completes.
-- The system must store the accepted Terms version and timestamp.
-- The system must allow authenticated users to change their password.
-- The system must allow registered users to authenticate, end their session,
-  and access the dashboard through a protected browser session.
-- The system must define session expiration and revocation behavior.
+- Register with email, first name, last name and password; record accepted Terms
+  version and timestamp before completing registration.
+- Support sign-in, sign-out and password changes with protected sessions and
+  defined session expiration/revocation behavior.
 
 ### Site and subdomain
 
-- The system must create one site for each V1 account.
-- The system must assign or allow selection of one free subdomain for the
-  account.
-- The system must show the free subdomain in the dashboard.
-- The system must prevent one account from accessing another account's site,
-  subdomain, files, deployments, versions, or previews.
+- Create one account-owned site and one free subdomain, displayed in Dashboard.
+- Prevent cross-account access to site data, files, deployments, versions and previews.
 
 ### Dashboard
 
-- The dashboard must provide account and access management only. It must not
-  initiate deployment, preview, approval, publication, rollback or version
-  management. Site status and history are exposed through MCP.
-- The dashboard must show MCP connection details.
-- The dashboard must provide a downloadable generated
-  `CODOMAIN_MCP_README.md` with safe MCP usage instructions and secret
-  placeholders.
-- The dashboard must allow API key creation, revocation, and rotation.
-- The dashboard must update README and MCP connection details when the API key
-  changes.
-- The dashboard must show a raw API key only at creation or rotation time and
-  must show only safe key metadata afterward.
-- V1 must allow no more than one active MCP API key per account.
+- Provide account and access management only. All site operations and their
+  status/history belong to MCP.
+- Provide connection instructions and a downloadable integration README as
+  defined in [MCP connection details](MCP_DESIGN.md#connection-details).
+- Support API key creation, revocation and rotation, with at most one active key.
+  Show the raw key only when issued; show safe metadata afterward.
 
 ### MCP submission
 
@@ -107,9 +58,6 @@ the subsequent publishing journey.
   passes basic request acceptance and before content validation begins.
 - A deployment must record validation failures without creating a preview or
   version.
-- The system must return safe deployment and preview status through MCP.
-- Retried submissions with the same idempotency key must not create duplicate
-  deployments.
 
 ### Preview and approval
 
@@ -120,10 +68,8 @@ the subsequent publishing journey.
 - Previewed content must be fixed before review and must not change afterward.
 - Preview URLs must be time-limited, revocable capability URLs served from an
   origin isolated from the dashboard.
-- Approval, publication and rollback must be requested through authenticated
-  MCP operations, never dashboard actions. Explicit user approval remains
-  required; the mechanism for proving it through MCP is unresolved and must be
-  selected before implementation. An API key alone does not prove human review.
+- Require explicit user approval through MCP under
+  [approval integrity controls](SECURITY.md#preview-and-publishing-integrity).
 - Approval must apply only to the exact content the user reviewed.
 - A newer or different deployment must require a separate approval.
 
@@ -131,9 +77,9 @@ the subsequent publishing journey.
 
 - Approval must create an immutable version of the reviewed content.
 - Published state must point to an immutable version.
-- Every publish attempt must create an auditable publication record separate
-  from the version.
-- The system must keep deployment and version history.
+- Publication requests and their attempts, including failures, must be auditable
+  separately from immutable versions. Retrying an operation must not duplicate
+  its publication effects.
 - The system must expose the current published version and deployment/version
   history through MCP.
 - Failed publication must not replace the previously published version.
@@ -177,23 +123,10 @@ Preview, publication, or rollback failure must preserve the previous live site.
 
 ## Success metrics
 
-Suggested V1 product metrics:
-
-- Successful account creation rate.
-- MCP connection setup completion rate.
-- Successful deployment submission rate.
-- Preview generation success rate.
-- Preview-to-publication approval rate.
-- Publication success rate.
-- Rollback success rate.
-- API key rotation and revocation success rate.
-
-Operational and security telemetry should separately track:
-
-- Cross-account authorization attempts and denials.
-- Failed deployment validation reasons.
-- Preview capability expiration and revocation failures.
-- Publication and rollback state-transition failures.
+Measure completion of account/MCP setup and the submission-to-preview-to-publication
+journey, along with rollback and credential-management success. Detailed telemetry
+belongs in the corresponding implementation work; security monitoring follows
+[Security](SECURITY.md#logging-monitoring-and-response).
 
 ## Open questions
 
@@ -201,8 +134,7 @@ Operational and security telemetry should separately track:
 - Should free subdomains be user-selected, generated, or both?
 - What file size, file count, and total deployment limits should V1 enforce?
 - What static file types should be accepted by default?
-- Confirm the scope of the last-10 temporary-content policy; define quarantine
-  and preview expiry while retaining approved versions.
+- Confirm the scope of the last-10 temporary-content policy and quarantine expiry.
 - What archive behavior should MCP expose?
 - How is explicit human approval established through MCP?
 - What live-site availability and recovery objectives should V1 meet?
@@ -211,7 +143,7 @@ Operational and security telemetry should separately track:
   use?
 - What maximum propagation delay is acceptable for API key revocation and
   rotation?
-- What additional consent, if any, does the sketch's “Other Conditions” mean?
+- Is any consent beyond Terms and Conditions acceptance required?
 
 Technical choices are tracked in [Architecture](ARCHITECTURE.md#remaining-implementation-decisions)
 and [MCP design](MCP_DESIGN.md#connection-details). Security reporting is defined

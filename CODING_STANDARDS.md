@@ -1,8 +1,8 @@
 # Coding Standards
 
 Applies to code, tests, scripts, configuration, and generated output. These
-rules remain framework-independent; Java / Spring Boot application boundaries
-are defined in [Architecture](ARCHITECTURE.md).
+rules remain framework-independent; application boundaries are defined in
+[Architecture](ARCHITECTURE.md).
 
 ## Design and organization
 

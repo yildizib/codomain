@@ -30,8 +30,7 @@ flowchart TB
 Your AI connects through MCP, the integration used to send files to Codomain.
 Deployment, preview, approval, publication and rollback all run through MCP.
 The dashboard is for registration, account/password management, API keys and
-connection instructions. Approval remains tied to the exact previewed content;
-the MCP human-confirmation mechanism is still being specified.
+connection instructions. Approval remains tied to the exact previewed content.
 
 ## What you get in V1
 
@@ -53,11 +52,16 @@ for choices that must be resolved before building the runtime.
 
 ## Documentation
 
+Read Product requirements and Architecture for the system framework. Use MCP
+Design and Security for the relevant boundaries, and ADRs for decision history.
+Detailed contracts, schemas, failure scenarios and implementation tasks will be
+specified in OpenSpec as each capability is developed.
+
 | Read about | Document |
 | --- | --- |
 | V1 scope and acceptance | [Product requirements](PRODUCT_REQUIREMENTS.md) |
 | Components, terminology, lifecycle | [Architecture](ARCHITECTURE.md) |
-| AI integration contracts | [MCP design](MCP_DESIGN.md) |
+| AI integration capabilities | [MCP design](MCP_DESIGN.md) |
 | Security and reporting | [Security](SECURITY.md) |
 | Decision history | [Decisions](DECISIONS.md) |
 | Development rules | [Coding standards](CODING_STANDARDS.md) |
