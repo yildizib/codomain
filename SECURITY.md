@@ -1,26 +1,12 @@
 # Security Guidelines
 
-This document defines the baseline security expectations for Codomain. It
-covers the account, dashboard, remote MCP, static-file, preview, and
-publishing surfaces described in V1.
-
-## Security objectives
-
-Codomain must protect:
-
-- Account credentials and personal information
-- API keys and MCP access
-- Site files and deployment metadata
-- Preview and published environments
-- Isolation between accounts and sites
-- The integrity of approved versions and rollback targets
+Canonical security requirements for accounts, MCP, uploads, previews, and
+publication. Lifecycle mechanics are defined in [Architecture](ARCHITECTURE.md).
 
 ## Authentication and account security
 
 - Store passwords using a strong, modern, adaptive password-hashing algorithm.
 - Never store or log plaintext passwords.
-- Require Terms and Conditions acceptance during registration and retain the
-  acceptance record with its version and timestamp.
 - Apply rate limits and abuse detection to registration, login, password
   changes, API-key operations, and MCP authentication.
 - Invalidate or re-authenticate sensitive sessions after password changes when
@@ -89,8 +75,8 @@ Codomain must protect:
 - Handle archives defensively, including protection against archive bombs and
   duplicate-file collisions.
 - Treat uploaded HTML, CSS, JavaScript, and assets as untrusted content.
-- Seal validated artifacts before preview, compute a deterministic manifest
-  digest, and prevent content changes after sealing.
+- Quarantine unvalidated bytes; allow preview only after validation and sealing
+  under the [deployment lifecycle](ARCHITECTURE.md#deployment-lifecycle).
 - Prevent uploaded content from accessing platform credentials, internal
   metadata, private network services, or other tenants.
 - Use safe content-disposition and content-type handling when serving files.

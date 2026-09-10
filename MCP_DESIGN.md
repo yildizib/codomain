@@ -1,38 +1,34 @@
 # MCP Design
 
-This document defines the baseline MCP design for Codomain V1.
+Canonical AI integration contracts. Concrete schemas and transport remain to
+be finalized; the proposed tools below define V1 capability boundaries.
 
-Codomain exposes a remote MCP connection so a user's external AI assistant can
-submit static website files, request previews, inspect deployment/version
-state, and prepare content for user approval. Codomain does not provide the AI
-assistant. MCP is the integration boundary between the user's chosen AI client
-and Codomain's publishing platform.
+## Connection and authorization
 
-## V1 MCP model
+The connection targets the authenticated account's site, not a separate config
+per subdomain. Apply [API key authorization](SECURITY.md#api-keys-and-mcp-authorization)
+and resolve resource ownership server-side.
 
-V1 uses one account-scoped MCP connection:
-
-```text
-One account = one site = one MCP connection
+```mermaid
+flowchart TB
+  subgraph setup["1 · Dashboard"]
+    D["Endpoint and authentication instructions"] --> R["Generated README and template · secret placeholder"]
+  end
+  subgraph client["2 · External AI client"]
+    R --> C["Configure connection and store key securely"]
+    C --> S["Build and submit static files"]
+  end
+  subgraph platform["3 · Codomain"]
+    S --> M["Authenticate and accept deployment"]
+    M --> P["Return status and preview when ready"]
+  end
+  classDef actor fill:#dbeafe,stroke:#2563eb,color:#172554;
+  classDef service fill:#ede9fe,stroke:#7c3aed,color:#2e1065;
+  classDef review fill:#fef3c7,stroke:#d97706,color:#451a03;
+  class D,R,M service;
+  class C,S actor;
+  class P review;
 ```
-
-The user does not create a separate MCP config for each subdomain. The MCP
-connection manages the single site attached to the authenticated account.
-
-## Authentication
-
-- MCP requests must authenticate with the account's active API key.
-- API keys must be generated, revoked, and rotated from the dashboard. V1
-  permits at most one active MCP API key per account.
-- Revoked or rotated keys must stop authorizing new MCP requests within the
-  documented maximum propagation window; the design target is the next
-  authorization decision.
-- MCP tools must resolve account and site ownership server-side.
-- MCP requests must not trust client-supplied account IDs, site IDs,
-  deployment IDs, version IDs, subdomains, paths, or URLs without
-  authorization checks.
-- Authorization failures must not reveal whether another account, site,
-  deployment, version, or key exists.
 
 ## Connection details
 
@@ -67,151 +63,34 @@ must place the newly issued key in the AI client's secret configuration.
 
 ## Proposed V1 tools
 
-The exact MCP schema will be finalized during implementation. These tool names
-describe the expected V1 capability boundaries.
+Exact schemas remain implementation decisions. All resources are restricted to
+the authenticated account; responses follow the safety rules above.
 
-### get_site_context
+| Tool | Request / purpose | Expected response |
+| --- | --- | --- |
+| `get_site_context` | Read the account's site context. | Safe site name/ID, subdomain, live URL, latest preview if available, current version, deployment/version status, static-file constraints. |
+| `submit_static_site` | Manifest, static files, account-scoped idempotency key; optional message and client metadata. | Deployment ID, validation and preview status, preview URL when ready, safe warnings/errors. |
+| `get_deployment_status` | Inspect an owned deployment. | Deployment ID, validation/preview/approval status, version ID if created, preview URL when available, safe warnings/errors. |
+| `list_versions` | List the site's versions. | IDs, labels/numbers, creation timestamps, current-pointer indicator, source deployments, rollback eligibility. |
+| `preview_version` | Request a preview of an owned immutable version. | Version ID, preview URL and status. Does not publish. |
+| `get_publish_status` | Read current publication state. | Live URL, current version, last publication timestamp, publication record, target version, safe status. |
 
-Returns safe context for the authenticated account's site.
+Submission creates a deployment after authentication and basic acceptance,
+before content validation. Follow [upload security](SECURITY.md#static-file-and-upload-security)
+before sealing or preview.
 
-Expected output:
+Small text files may use inline content; larger or binary assets may use a
+controlled two-phase upload. Finalize transfer schemas, limits, and integrity
+checks before implementation. Every transfer mode must produce the same
+canonical manifest and digest.
 
-- Site name or identifier safe for display.
-- Free subdomain.
-- Published URL.
-- Latest preview URL if one exists.
-- Current published version.
-- High-level deployment/version status.
-- Static-site constraints and file expectations.
+## Approval and rollback boundary
 
-This tool must not return secrets or raw API keys.
-
-### submit_static_site
-
-Submits a static website deployment for validation and preview.
-
-Expected input:
-
-- File manifest.
-- HTML, CSS, JavaScript, and asset files.
-- Account-scoped idempotency key.
-- Optional deployment message.
-- Optional client metadata.
-
-Expected output:
-
-- Deployment ID.
-- Validation status.
-- Preview status.
-- Preview URL when available.
-- Safe warnings or errors.
-
-The deployment record is created after authentication and basic request
-acceptance, before content validation. The submitted files remain untrusted.
-The platform must validate paths, file types, sizes, archive behavior, and
-ownership before sealing the artifact or creating a preview.
-
-The concrete transfer mechanism may use inline content for small text files and
-a controlled two-phase upload for larger or binary assets. Its schema, limits,
-and integrity checks must be finalized before implementation; all transfer
-modes must produce the same canonical manifest and digest.
-
-### get_deployment_status
-
-Returns status for a deployment owned by the authenticated account.
-
-Expected output:
-
-- Deployment ID.
-- Validation status.
-- Preview status.
-- Approval status.
-- Version ID if a version has been created.
-- Preview URL when available.
-- Safe error or warning details.
-
-### list_versions
-
-Lists versions for the authenticated account's single site.
-
-Expected output:
-
-- Version IDs.
-- Version labels or numbers.
-- Created timestamps.
-- Whether the version is the current published-pointer target.
-- Source deployment IDs.
-- Rollback eligibility.
-
-### preview_version
-
-Creates or returns a preview URL for an existing immutable version owned by the
-authenticated account.
-
-Expected output:
-
-- Version ID.
-- Preview URL.
-- Preview status.
-
-This tool does not publish the version.
-
-### get_publish_status
-
-Returns the current publication state for the authenticated account's site.
-
-Expected output:
-
-- Published URL.
-- Current published version.
-- Last publication timestamp.
-- Current publication record and target version.
-- Safe publication status.
-
-## User approval boundary
-
-MCP may submit files and create previews, but publication requires explicit,
-authenticated user approval in Codomain.
-
-V1 should not allow an AI agent to publish directly without the user's approval
-unless a future product decision introduces a separate, explicit approval
-model. Approval must be bound to the exact sealed artifact digest being
-published.
-
-## File submission rules
-
-- Accept only static-site files required for HTML, CSS, JavaScript, and assets.
-- Reject absolute paths, path traversal, invalid encodings, ambiguous path
-  normalization, and writes outside the assigned site namespace.
-- Enforce limits for request size, file count, file size, total deployment
-  size, and archive expansion.
-- Handle duplicate paths deterministically and safely.
-- Treat all submitted content as untrusted.
-- Do not allow submitted content to access platform credentials, internal
-  metadata, private network services, or other tenants.
-
-## Preview behavior
-
-- Every successfully validated submission must create a sealed artifact before
-  preview.
-- Preview URLs must be isolated from dashboard administration and other
-  accounts.
-- Preview URLs must be revocable, time-limited capabilities and must not confer
-  dashboard or MCP authority.
-- Previewed content must not receive platform secrets.
-- Preview state must show which deployment or version it represents.
-- A preview must not become live through retries, predictable URLs, race
-  conditions, or direct API calls.
-
-## Version and rollback behavior
-
-- Approved deployments create immutable versions.
-- Published state must point to a version rather than mutable files.
-- Rollback must select a previous immutable version.
-- Publish and rollback create publication records separate from versions.
-- MCP may request a preview for a previous version, but rollback must require
-  an authenticated dashboard action unless a future product decision defines a
-  separate approval model.
+MCP prepares previews and reports status. Publication approval and rollback
+require authenticated dashboard actions in V1. Follow the
+[deployment lifecycle](ARCHITECTURE.md#deployment-lifecycle) and
+[approval integrity controls](SECURITY.md#preview-and-publishing-integrity).
+File acceptance follows [upload security](SECURITY.md#static-file-and-upload-security).
 
 ## Error behavior
 
@@ -261,20 +140,8 @@ sensitive payloads.
   response.
 - Reusing a submission idempotency key with identical input returns the
   original deployment; reusing it with different input returns `conflict`.
-- Approval records the manifest digest. Publication must compare that digest
-  with the sealed artifact and version before updating live state.
-- Concurrent publish or rollback requests must not overwrite a newer published
-  pointer without detecting the conflict.
+- Publication integrity and concurrency follow
+  [Architecture](ARCHITECTURE.md#deployment-lifecycle).
 
-## Future scope
-
-These MCP capabilities are outside V1:
-
-- Multiple MCP connections per account.
-- Project-specific MCP connections.
-- Subdomain-specific MCP configs.
-- Team or client-scoped MCP access.
-- AI-agent direct publishing without a separately approved authorization model.
-- Custom-domain management through MCP.
-- Dynamic application deployment.
-- Permanent public preview URLs.
+Future scope is tracked in [Product requirements](PRODUCT_REQUIREMENTS.md#out-of-scope-for-v1).
+Permanent public preview URLs are outside V1.

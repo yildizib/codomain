@@ -1,72 +1,12 @@
 # Product Requirements
 
-This document defines the V1 product requirements for Codomain.
+Canonical V1 scope and acceptance criteria. [README](README.md) introduces the
+product; [Architecture](ARCHITECTURE.md) defines lifecycle semantics.
 
-Codomain is a remote MCP publishing platform for static websites. Users bring
-their own AI assistant or agent. Codomain receives generated static-site files,
-creates previews, manages immutable versions, and publishes the user-approved
-version to a live URL.
+## Scope
 
-Codomain does not provide an AI assistant, visual website builder, traditional
-hosting panel, or general-purpose deployment platform.
-
-## Product message
-
-```text
-Your AI assistant builds the website.
-Our publishing platform puts it live.
-```
-
-## V1 goal
-
-V1 should let an individual user connect their own AI client to Codomain,
-submit one static website through MCP, review a preview, approve publication,
-and manage version history for one free subdomain.
-
-## Target user
-
-The V1 user:
-
-- Has access to an AI assistant or agent such as ChatGPT, Claude, Gemini,
-  Codex, or another MCP-compatible client.
-- Wants the AI assistant to generate static HTML, CSS, JavaScript, and assets.
-- Does not want Codomain to provide the AI assistant.
-- Wants a simple publishing workflow with preview, approval, versioning, and
-  rollback.
-
-## V1 ownership model
-
-```text
-One account = one site = one MCP connection
-```
-
-Each account owns exactly one site, one free subdomain, and one account-scoped
-MCP connection in V1.
-
-## In scope
-
-V1 includes:
-
-- Email, first name, last name, and password registration.
-- Terms and Conditions acceptance during registration.
-- One free subdomain for each account.
-- One static website managed by each account.
-- Dashboard access for site and account management.
-- MCP connection details shown in the dashboard.
-- Downloadable generated `CODOMAIN_MCP_README.md` with product context and MCP
-  usage instructions.
-- API key creation, revocation, and rotation.
-- Automatic generated README and MCP connection template updates when API key
-  metadata changes, without embedding the raw key.
-- Password change.
-- Static file submission through MCP.
-- Preview URL generation.
-- Authenticated user approval before publication.
-- Published URL for the approved version.
-- Deployment history.
-- Version history.
-- Previous-version preview.
-- Rollback to a previous immutable version.
+One account owns one static site, one free subdomain, and one account-scoped
+MCP connection. V1 serves individuals who bring their own AI client.
 
 ## Out of scope for V1
 
@@ -90,28 +30,33 @@ V1 does not include:
 - Dynamic server-side execution, databases, background workers, and serverless
   functions.
 
-## Primary user journey
+## Getting started
 
-1. The user creates an account with email, first name, last name, and password.
-2. The user accepts the Terms and Conditions.
-3. Codomain creates one site and one free subdomain for the account.
-4. The user opens the dashboard.
-5. The user creates an API key. The raw value is shown once.
-6. The dashboard shows MCP connection details and a downloadable generated
-   `CODOMAIN_MCP_README.md` that contains a secret placeholder, not the raw key.
-7. The user adds the MCP details to their AI client.
-8. The AI agent builds static site files.
-9. The AI agent submits the files through MCP and Codomain creates a deployment.
-10. Codomain validates the files, seals the accepted artifact with a content
-    digest, and creates a time-limited preview URL.
-11. The user reviews the preview.
-12. The user explicitly approves publication.
-13. Codomain creates an immutable version, records a publication event, and
-    atomically points the live URL to that version.
-14. The user can inspect deployment and version history.
-15. The user can preview a previous version and roll back when needed.
+```mermaid
+flowchart TB
+  subgraph account["1 · Account"]
+    A{"Have an account?"} -->|No| B["Register and accept Terms"]
+    A -->|Yes| C["Sign in"]
+    B --> D["Receive or choose a free subdomain"]
+    D --> E["Open dashboard"]
+    C --> E
+  end
+  subgraph connect["2 · Connect your AI"]
+    E --> F["Create an API key"]
+    F --> G["Download integration README and connection details"]
+    G --> H["Configure AI client and its secret store"]
+  end
+  classDef actor fill:#dbeafe,stroke:#2563eb,color:#172554;
+  classDef platform fill:#ede9fe,stroke:#7c3aed,color:#2e1065;
+  class A,B,C,H actor;
+  class D,E,F,G platform;
+```
 
-## Functional requirements
+Adapted from the supplied Excalidraw concept. Subdomain selection and account
+verification remain open decisions. See [README](README.md#how-it-works) for
+the subsequent publishing journey.
+
+## Requirements and acceptance
 
 ### Account and registration
 
@@ -197,41 +142,12 @@ V1 does not include:
   selected version's contents.
 - Rollback must create a publication record and must not create a new version.
 
-## Non-functional requirements
+## Quality requirements
 
-- The system must follow `SECURITY.md`.
-- The system must follow `CODING_STANDARDS.md`.
-- The system must keep account and site data isolated.
-- The system must avoid exposing API keys, passwords, secrets, private user
-  content, or cross-account metadata.
-- The system must produce safe audit records for security-sensitive actions.
-- All externally reachable production surfaces must use HTTPS.
-- The system must preserve the previous live version when preview,
-  publication, or rollback fails.
-
-## Acceptance criteria
-
-V1 is acceptable when:
-
-- A user can register, accept Terms and Conditions, and access the dashboard.
-- A user receives exactly one free subdomain and one managed site.
-- A user can create, revoke, and rotate an API key.
-- MCP connection details and generated README content reflect current API key
-  metadata without containing the raw secret.
-- An authenticated MCP client can submit a valid static site.
-- Invalid paths, oversized submissions, and unauthorized MCP requests are
-  rejected safely.
-- The system creates a preview URL for a valid deployment.
-- The preview, approval, version, and publication reference the same artifact
-  digest.
-- The approved version is published to the live URL.
-- Deployment and version history are visible.
-- A previous version can be previewed.
-- The user can roll back to a previous immutable version.
-- Rollback creates a publication record but does not create a new version.
-- Revoked or rotated API keys no longer authorize MCP operations.
-- Another account cannot access or modify the user's site, files, deployments,
-  versions, previews, API keys, or published state.
+Acceptance also requires [Security](SECURITY.md) and
+[Coding standards](CODING_STANDARDS.md), including safe upload rejection,
+revoked-key rejection, account isolation, and safe audit records.
+Preview, publication, or rollback failure must preserve the previous live site.
 
 ## Success metrics
 
@@ -268,3 +184,4 @@ Operational and security telemetry should separately track:
   use?
 - What maximum propagation delay is acceptable for API key revocation and
   rotation?
+- What additional consent, if any, does the sketch's “Other Conditions” mean?

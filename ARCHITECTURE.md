@@ -1,47 +1,55 @@
 # Architecture
 
-This document describes the baseline architecture for Codomain V1.
+Canonical components, terminology, and lifecycle semantics. See
+[Product requirements](PRODUCT_REQUIREMENTS.md) for scope,
+[Security](SECURITY.md) for controls, and [Decisions](DECISIONS.md) for rationale.
 
-Codomain is a remote MCP publishing platform for static websites. Users bring
-their own AI assistant or agent. Codomain receives generated HTML, CSS,
-JavaScript, and asset files through MCP, validates and seals deployment
-artifacts, creates isolated previews, stores immutable versions, and publishes
-approved versions to a live URL.
+## System boundaries
 
-Codomain is not an AI provider, visual site builder, general-purpose hosting
-panel, or general deployment platform.
-
-## V1 architecture model
-
-V1 follows a deliberately small ownership model:
-
-```text
-One account = one site = one MCP connection
+```mermaid
+flowchart TB
+  subgraph external["External · User and AI client"]
+    U["User"]
+    AI["AI assistant · builds static files"]
+  end
+  subgraph control["Control plane · Platform domain"]
+    UI["Dashboard and Control API"]
+    MCP["Remote MCP gateway"]
+    S["Deployment and publication services"]
+    W["Ingestion and validation"]
+    M["Metadata and audit records"]
+  end
+  subgraph content["Content plane · Separate registrable domain"]
+    P["Preview delivery"]
+    L["Published delivery"]
+  end
+  STORE["Sealed artifact storage"]
+  U --> UI
+  U --> AI
+  AI -->|Submit| MCP
+  UI --> S
+  MCP --> S
+  S --> W
+  W --> STORE
+  S --> M
+  STORE --> P
+  STORE --> L
+  M -->|Current version pointer| L
+  P -->|Review| U
+  class U,AI actor;
+  class UI,MCP,S,W,M,STORE platform;
+  class P review;
+  class L live;
+  classDef actor fill:#dbeafe,stroke:#2563eb,color:#172554;
+  classDef platform fill:#ede9fe,stroke:#7c3aed,color:#2e1065;
+  classDef review fill:#fef3c7,stroke:#d97706,color:#451a03;
+  classDef live fill:#dcfce7,stroke:#16a34a,color:#14532d;
+  classDef failure fill:#fee2e2,stroke:#dc2626,color:#450a0a;
 ```
 
-This model must remain explicit in code and data structures. Future support
-for multiple sites, custom domains, teams, agencies, or client access must be
-introduced through intentional product and architecture changes.
-
-## System surfaces
-
-Codomain has four primary surfaces:
-
-- Dashboard: the authenticated browser interface where users manage their
-  account, site, subdomain, API key, preview, published URL, deployments,
-  versions, rollback, generated `CODOMAIN_MCP_README.md` download, and password.
-- Remote MCP server: the account-scoped integration boundary used by external
-  AI clients to send files, request previews, inspect deployments, and ask for
-  version previews.
-- Preview delivery: the isolated non-live environment where a submitted
-  deployment can be reviewed before publication.
-- Published delivery: the public environment that serves the approved version
-  at the user's free subdomain.
-
-Dashboard and MCP are control-plane surfaces. Preview and published delivery
-are content-plane surfaces. In production, control-plane and content-plane
-traffic must use different registrable domains so user-controlled content
-cannot share an origin or cookie boundary with account administration.
+The AI runs outside Codomain. Dashboard and MCP coordinate operations;
+preview and live delivery serve user content under the
+[isolation requirements](SECURITY.md#preview-and-publishing-integrity).
 
 ## Logical components
 
@@ -66,112 +74,49 @@ cannot share an origin or cookie boundary with account administration.
 - Audit pipeline: records security-sensitive and lifecycle events without raw
   secrets or full sensitive payloads.
 
-## Core domains
+## Domain model
 
-### Account
+The database schema is not yet selected. Keep these concepts explicit:
 
-An account represents a registered user with email, first name, last name,
-password credentials, Terms and Conditions acceptance, session state, and API
-key lifecycle controls.
+| Concept | Meaning and retained metadata |
+| --- | --- |
+| Account | Registered identity, credentials, Terms acceptance, session/security state, and key lifecycle controls. Registration fields are defined in the PRD. |
+| Site | Account-owned website, free subdomain, lifecycle state, current published-version pointer, and history. |
+| API key | Account owner, non-recoverable key representation, state, and creation/revocation/rotation timestamps. |
+| MCP connection | Logical projection of account, site, endpoint, and active-key metadata; not necessarily a mutable entity or a subdomain-specific configuration. |
+| Deployment | Accepted submission record: submitter, idempotency key, source metadata, manifest/digest, validation result, preview reference, lifecycle state, timestamps, and safe errors. Failed validation creates no preview or version. |
+| Approval | Authenticated actor, deployment, decision, exact manifest digest, and timestamp. |
+| Version | Immutable content created from an approved deployment: source deployment, ID/number, manifest, approved digest, and creation time. |
+| Preview | Non-live rendering of a sealed deployment or existing version, accessed under the preview security policy. |
+| Publication | Auditable publish or rollback attempt: actor, reason, target and previous versions, result, and timestamps. Success atomically updates the live pointer. |
+| Audit event | Actor, action, target, timestamp, result, and safe metadata. |
 
-### Site
+## Deployment lifecycle
 
-A site represents the single V1 static website owned by an account. It has one
-free subdomain, one current published version, and deployment/version history.
-
-### MCP connection
-
-The MCP connection is the logical configuration through which an AI client
-accesses the account's single V1 site. It is derived from account, site,
-endpoint, and active-key metadata and does not have to be a separately mutable
-database entity. It is not subdomain-specific in V1.
-
-### Deployment
-
-A deployment is the operational record created after an authenticated
-submission passes basic request acceptance. It records the submitter,
-idempotency key, lifecycle state, validation result, manifest digest, preview
-state, timestamps, and safe failure information. A deployment that fails
-validation does not create a preview or version.
-
-### Version
-
-A version is an immutable, content-identified state of a site. Versions are
-created from approved sealed deployments and retain the approved manifest
-digest. They can be previewed, published, or selected as rollback targets.
-Version contents and manifests must not be rewritten after creation.
-
-### Preview
-
-A preview is a non-live rendering of a sealed deployment artifact or historical
-version. V1 preview access uses a revocable, time-limited capability URL on an
-isolated content origin. A preview URL grants access only to its referenced
-artifact and never grants dashboard or MCP authority.
-
-### Publication
-
-Publication is an auditable event that makes an approved immutable version live
-at the account's published URL. It atomically updates the site's published
-pointer. Rollback is a new publication event targeting an existing version; it
-does not create or modify a version.
-
-## High-level workflow
-
-```text
-User creates account
-        ↓
-Codomain creates one site and one free subdomain
-        ↓
-Dashboard provides MCP connection details and generated integration README
-        ↓
-User adds MCP details to an external AI client
-        ↓
-AI agent builds static files
-        ↓
-AI agent submits files with an idempotency key through MCP
-        ↓
-Codomain creates a deployment and validates the files
-        ↓
-Codomain seals the artifact, records its digest, and creates a preview URL
-        ↓
-User reviews and approves the preview in the dashboard
-        ↓
-Codomain verifies the digest and creates an immutable version
-        ↓
-Codomain records a publication and atomically updates the live pointer
-```
-
-## Boundary rules
-
-- Dashboard authentication and MCP authentication are separate entry points,
-  but both must resolve to the same account and site ownership model.
-- Every dashboard and MCP operation must perform server-side authorization.
-- Client-supplied account IDs, site IDs, version IDs, deployment IDs, paths,
-  subdomains, and URLs must be treated as untrusted input.
-- Uploaded HTML, CSS, JavaScript, and assets are user-controlled content.
-- Control-plane and content-plane surfaces must not share an origin or session
-  cookie boundary.
-- Platform secrets, internal services, deployment workers, and storage must
-  never be exposed to previewed or published sites.
-- Preview approval must apply only to the exact sealed artifact digest being
-  approved.
-
-## Lifecycle state machines
-
-Deployments and publication attempts use separate persisted state machines.
-Approval and immutable version creation complete before a publication attempt
-begins.
-
-```text
-Deployment:
-Received → Validating → PreparingPreview → PreviewReady → Approved
-               ↓               ↓
-       ValidationFailed   PreviewFailed ──retry──┘
-
-Publication:
-Requested → Applying → Succeeded
-                ↓
-              Failed ──retry──┘
+```mermaid
+flowchart TB
+  subgraph intake["1 · Intake and validation"]
+    R["Received"] --> V["Validating"]
+    V -->|Invalid| VF["ValidationFailed"]
+  end
+  subgraph preview["2 · Sealed preview"]
+    V -->|Seal and record digest| P["PreparingPreview"]
+    P -->|Ready| PR["PreviewReady"]
+    P -->|Failure| PF["PreviewFailed"]
+    PF -->|Retry same artifact| P
+  end
+  subgraph approval["3 · User approval"]
+    PR -->|Approve exact digest| A["Approved · immutable version created"]
+  end
+  class R,V,P platform;
+  class PR review;
+  class A live;
+  class VF,PF failure;
+  classDef actor fill:#dbeafe,stroke:#2563eb,color:#172554;
+  classDef platform fill:#ede9fe,stroke:#7c3aed,color:#2e1065;
+  classDef review fill:#fef3c7,stroke:#d97706,color:#451a03;
+  classDef live fill:#dcfce7,stroke:#16a34a,color:#14532d;
+  classDef failure fill:#fee2e2,stroke:#dc2626,color:#450a0a;
 ```
 
 - Only documented state transitions are allowed.
@@ -191,27 +136,33 @@ Requested → Applying → Succeeded
   compare-and-swap protection for the site's published pointer.
 - A failed publish or rollback leaves the previous pointer unchanged.
 
-## Data model expectations
+## Publication and rollback
 
-The exact database schema is future implementation detail, but V1 should keep
-these concepts explicit:
+```mermaid
+flowchart TB
+  A["New approved version"] --> R["Requested"]
+  H["Existing version · user selects rollback"] --> R
+  subgraph attempt["Publication attempt"]
+    R --> P["Applying"]
+    P -->|Atomic pointer update| S["Succeeded"]
+    P -->|Previous pointer retained| F["Failed"]
+    F -->|Retry| P
+  end
+  S --> L["Live URL serves selected version"]
+  class A,H review;
+  class R,P platform;
+  class S,L live;
+  class F failure;
+  classDef actor fill:#dbeafe,stroke:#2563eb,color:#172554;
+  classDef platform fill:#ede9fe,stroke:#7c3aed,color:#2e1065;
+  classDef review fill:#fef3c7,stroke:#d97706,color:#451a03;
+  classDef live fill:#dcfce7,stroke:#16a34a,color:#14532d;
+  classDef failure fill:#fee2e2,stroke:#dc2626,color:#450a0a;
+```
 
-- Account: identity, credentials, Terms acceptance, security state.
-- Site: owner account, free subdomain, lifecycle state, current published
-  version.
-- API key: owner account, key hash, lifecycle state, created/revoked/rotated
-  timestamps.
-- MCP connection: a logical projection of account, site, endpoint, and
-  active-key metadata used to generate client configuration.
-- Deployment: submitted file manifest, validation result, preview reference,
-  lifecycle state, idempotency key, manifest digest, source metadata, and audit
-  timestamps.
-- Approval: actor, deployment, manifest digest, decision, and timestamp.
-- Version: immutable file manifest, deployment source, version number or ID,
-  content digest, and creation timestamp.
-- Publication: target version, actor, reason, previous version, result, and
-  timestamps.
-- Audit event: actor, action, target, timestamp, result, and safe metadata.
+Approval and version creation finish before a publication attempt begins.
+Rollback records a new publication selecting an existing version; version
+contents remain unchanged.
 
 ## Storage expectations
 
@@ -221,48 +172,5 @@ these concepts explicit:
   deterministic manifest digest.
 - Publish by moving or updating a pointer to an immutable version, not by
   rewriting version contents.
-- Keep generated `CODOMAIN_MCP_README.md` and MCP connection templates derived
-  from current account and API key metadata without embedding raw keys.
-- Do not store plaintext API keys after creation unless a future design
-  explicitly requires it and documents the risk.
-
-## Reliability expectations
-
-- Failed uploads must not create partial live state.
-- Failed previews must not publish content.
-- Failed publication must leave the previous published version live.
-- Rollback must be atomic from the user's perspective.
-- Retried MCP operations must be idempotent and must not publish unapproved
-  content.
-- Deployment, version, publication, and rollback operations must produce audit
-  records.
-
-## Security expectations
-
-Architecture changes must follow `SECURITY.md`. Pay special attention to:
-
-- Authentication and session safety.
-- API key generation, storage, revocation, and rotation.
-- Account and site isolation.
-- Static file and path validation.
-- Preview isolation.
-- Explicit approval before publication.
-- Version immutability.
-- Abuse, suspension, and takedown behavior for published user sites.
-
-## Future scope
-
-These capabilities are not part of V1:
-
-- Multiple sites per account.
-- Multiple subdomains per account.
-- Custom domains.
-- Project-specific MCP connections.
-- Client-specific access.
-- Team members.
-- Multi-step approval workflows.
-- White-label publishing.
-- General-purpose deployment support beyond static websites.
-
-Future architecture should extend the V1 model without weakening the preview,
-approval, versioning, rollback, authorization, and isolation guarantees.
+- Generated integration content follows [MCP design](MCP_DESIGN.md#connection-details);
+  credential storage follows [Security](SECURITY.md#api-keys-and-mcp-authorization).

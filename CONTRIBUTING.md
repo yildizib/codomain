@@ -5,22 +5,8 @@ rules for Codomain. Read it before starting work.
 
 ## Git Flow
 
-Codomain uses an issue-based Git Flow:
-
-```text
-main (production)
-  ↑
-  └── hotfix/*
-        ↓
-develop (integration)
-  ↑
-  ├── feature/*
-  ├── bugfix/*
-  └── release/*
-```
-
-Never commit directly to `main` or `develop`. All changes must be made on a
-branch and merged through a pull request.
+Never commit directly to `main` or `develop`. Use an issue-specific branch and
+a human-reviewed pull request.
 
 ### Branch types
 
@@ -37,42 +23,15 @@ messages, pull request descriptions, and issue references.
 
 ## Standard task workflow
 
-1. Create or identify the GitHub issue.
-2. Update the local integration branch and create a task branch:
+1. Identify the issue and create its branch from the appropriate base.
+2. Implement and run [required checks](CODING_STANDARDS.md#validation).
+3. Stage only issue-related files; commit using the format below when authorized.
+4. Push and open one PR with scope, motivation, and validation evidence.
+5. Address feedback; humans approve and merge.
 
-   ```bash
-   git checkout develop
-   git pull origin develop
-   git checkout -b feature/short-slug-123
-   ```
-
-3. Implement and test the change.
-4. Commit with the issue reference:
-
-   ```bash
-   git add <changed-files>
-   git commit -m "#123: Add deployment preview"
-   ```
-
-   Stage only files related to the issue. Do not include unrelated local
-   changes, generated state, secrets, or credentials.
-
-5. Push the branch and open a pull request targeting `develop`:
-
-   ```bash
-   git push -u origin feature/short-slug-123
-   gh pr create --title "Add deployment preview" --base develop
-   ```
-
-6. Address review feedback and ensure all checks pass. A human reviewer owns
-   approval and merge decisions.
-
-Normal feature and bugfix pull requests are squash-merged unless a maintainer
-documents a reason to preserve individual commits. Task-level commits should
-still be kept focused because they support review before the squash merge.
-
-For a feature spanning multiple tasks, use one issue, one branch, multiple
-task-level commits, and one pull request.
+Use one issue, one branch, and one PR per multi-task feature, with focused
+task-level commits. Feature and bugfix PRs are normally squash-merged; a
+maintainer may document a reason to retain individual commits.
 
 ## Language and documentation format
 
@@ -122,17 +81,6 @@ increment MINOR, and breaking changes increment MAJOR.
    back-merge is not safe.
 7. Delete the hotfix branch after the fix is reflected in both `main` and
    `develop`.
-
-## Pull requests and quality
-
-- Keep changes focused and explain the motivation, scope, and validation.
-- Add or update tests for every feature and bug fix.
-- Verify formatting, static analysis, tests, and the relevant build before
-  requesting review.
-- Do not include secrets, API keys, credentials, generated local state, or
-  unrelated changes.
-- Preserve the V1 product requirements in `PRODUCT_REQUIREMENTS.md`, accepted
-  decisions in `DECISIONS.md`, and agent constraints in `AGENTS.md`.
 
 ## Responsibility
 
