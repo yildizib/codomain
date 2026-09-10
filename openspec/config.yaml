@@ -2,12 +2,14 @@ schema: spec-driven
 
 context: |
   Codomain is a remote MCP publishing platform for static websites. Users bring
-  their own AI assistant. V1 uses one account, one site, one free subdomain, one
-  logical MCP connection, and at most one active MCP API key. Submission creates
-  a deployment; validated content is sealed with a manifest digest; user approval
-  creates an immutable version; publish and rollback create publication records
-  and atomically update the live pointer. All repository content must be English.
-  Follow AGENTS.md and the specialized project documents it references.
+  their own AI assistant. Dashboard manages accounts and access; MCP is the sole
+  site-operation entry point. All repository content must be English.
+  Read AGENTS.md for authoritative document routing: PRODUCT_REQUIREMENTS.md owns
+  V1 scope and acceptance; ARCHITECTURE.md owns components, messaging, storage and
+  lifecycle; MCP_DESIGN.md owns integration contracts; SECURITY.md owns controls;
+  DECISIONS.md indexes decision rationale and supersession. Use those sources
+  rather than duplicating their requirements here. Unresolved choices remain
+  implementation gates, not selected defaults.
 
 rules:
   proposal:

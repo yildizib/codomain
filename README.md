@@ -13,11 +13,11 @@ flowchart TB
   subgraph create["1 · Create with your AI"]
     A["Connect your AI using dashboard instructions"] --> B["Ask your AI to build and submit the site"]
   end
-  subgraph review["2 · Review in Codomain"]
-    B --> C["Open the preview"] --> D["Approve the site"]
+  subgraph review["2 · Review and approve through MCP"]
+    B --> C["Open the preview returned through MCP"] --> D["Send approval through your MCP client"]
   end
   subgraph publish["3 · Share"]
-    D --> E["Your site is live at its URL"]
+    D --> P["Request publication through MCP"] --> E["Your site is live at its URL"]
   end
   classDef actor fill:#dbeafe,stroke:#2563eb,color:#172554;
   classDef reviewStep fill:#fef3c7,stroke:#d97706,color:#451a03;
@@ -28,14 +28,17 @@ flowchart TB
 ```
 
 Your AI connects through MCP, the integration used to send files to Codomain.
-Asking it to publish prepares a preview; you approve publication in Codomain.
+Deployment, preview, approval, publication and rollback all run through MCP.
+The dashboard is for registration, account/password management, API keys and
+connection instructions. Approval remains tied to the exact previewed content;
+the MCP human-confirmation mechanism is still being specified.
 
 ## What you get in V1
 
 - One site and one free subdomain per account.
 - A dashboard with AI connection instructions and API key management.
-- Preview and live URLs, deployment history, and saved versions.
-- Previous-version previews and rollback to restore your site.
+- Preview and live URLs, deployment history, and saved versions through MCP.
+- Previous-version previews and rollback through MCP to restore your site.
 
 Codomain serves static websites. You bring the AI assistant; visual editing,
 server-side application hosting, multiple sites, teams, and custom domains
@@ -43,8 +46,10 @@ are outside V1.
 
 ## Project status
 
-Product definition and architecture baseline. Application setup and deployment
-instructions will follow once the implementation stack is selected.
+Documentation baseline; runtime implementation has not started. See
+[Architecture](ARCHITECTURE.md#system-boundaries) for the selected design and
+[remaining implementation decisions](ARCHITECTURE.md#remaining-implementation-decisions)
+for choices that must be resolved before building the runtime.
 
 ## Documentation
 

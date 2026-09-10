@@ -9,26 +9,9 @@ The connection targets the authenticated account's site, not a separate config
 per subdomain. Apply [API key authorization](SECURITY.md#api-keys-and-mcp-authorization)
 and resolve resource ownership server-side.
 
-```mermaid
-flowchart TB
-  subgraph setup["1 · Dashboard"]
-    D["Endpoint and authentication instructions"] --> R["Generated README and template · secret placeholder"]
-  end
-  subgraph client["2 · External AI client"]
-    R --> C["Configure connection and store key securely"]
-    C --> S["Build and submit static files"]
-  end
-  subgraph platform["3 · Codomain"]
-    S --> M["Authenticate and accept deployment"]
-    M --> P["Return status and preview when ready"]
-  end
-  classDef actor fill:#dbeafe,stroke:#2563eb,color:#172554;
-  classDef service fill:#ede9fe,stroke:#7c3aed,color:#2e1065;
-  classDef review fill:#fef3c7,stroke:#d97706,color:#451a03;
-  class D,R,M service;
-  class C,S actor;
-  class P review;
-```
+For setup, see [Getting started](PRODUCT_REQUIREMENTS.md#getting-started).
+The [publishing journey](README.md#how-it-works) describes the user flow;
+[application ownership](ARCHITECTURE.md#application-ownership) defines execution responsibilities.
 
 ## Connection details
 
@@ -74,23 +57,51 @@ the authenticated account; responses follow the safety rules above.
 | `list_versions` | List the site's versions. | IDs, labels/numbers, creation timestamps, current-pointer indicator, source deployments, rollback eligibility. |
 | `preview_version` | Request a preview of an owned immutable version. | Version ID, preview URL and status. Does not publish. |
 | `get_publish_status` | Read current publication state. | Live URL, current version, last publication timestamp, publication record, target version, safe status. |
+| `list_deployments` | Read owned deployment history. | Deployment IDs, progress and safe results. |
+| `create_upload_session` | Begin a large-file submission with request idempotency. | Deployment/upload ID, controlled transfer details and limits. |
+| `finalize_upload` | Verify and freeze an owned completed upload. | Accepted operation ID and processing status. |
+| `preview_deployment` | Create or renew preview access to owned sealed content. | Operation status and capability URL when ready. |
+| `approve_deployment` | Approve the exact owned deployment digest under the pending confirmation policy. | Operation ID; version ID when completed. |
+| `publish_version` | Request publication of an owned approved version. | Operation/publication ID and status. |
+| `rollback_version` | Request rollback to an owned immutable version. | Publication ID and status; no new version. |
+
+Tool names and splitting/combining approval and publication are proposals, not
+final wire contracts. Archive/unarchive capabilities remain under evaluation;
+no archive semantics or deletion authority are implied by this table.
 
 Submission creates a deployment after authentication and basic acceptance,
 before content validation. Follow [upload security](SECURITY.md#static-file-and-upload-security)
 before sealing or preview.
 
-Small text files may use inline content; larger or binary assets may use a
-controlled two-phase upload. Finalize transfer schemas, limits, and integrity
-checks before implementation. Every transfer mode must produce the same
-canonical manifest and digest.
-
 ## Approval and rollback boundary
 
-MCP prepares previews and reports status. Publication approval and rollback
-require authenticated dashboard actions in V1. Follow the
-[deployment lifecycle](ARCHITECTURE.md#deployment-lifecycle) and
-[approval integrity controls](SECURITY.md#preview-and-publishing-integrity).
-File acceptance follows [upload security](SECURITY.md#static-file-and-upload-security).
+Approval and publication remain separate domain steps even if a future tool
+combines them. Follow the [deployment lifecycle](ARCHITECTURE.md#deployment-lifecycle),
+[publication and rollback semantics](ARCHITECTURE.md#publication-and-rollback),
+and [approval integrity controls](SECURITY.md#preview-and-publishing-integrity).
+The human-confirmation proof remains unresolved; select it before implementing
+these tools. [ADR-011](docs/decisions/ADR-011.md) records the MCP-only boundary.
+
+## Large uploads and asynchronous commands
+
+Small text files may use inline content. MCP Server owns large upload-session
+creation, controlled resumable HTTP transfer and finalization. The HTTP endpoints
+belong to the same application. Bind sessions
+to the authenticated account/site, enforce expiry and quotas, and verify chunks,
+completeness and integrity before freezing input. No post-finalization writes are
+allowed. Confirm client-side HTTP upload support and the exact protocol before
+implementation; large binaries must not be placed in MCP JSON or MQ payloads.
+
+Asynchronous responses distinguish accepted requests from completed operations.
+Status queries return safe progress, attempts and errors for owned operations.
+State-changing requests reject stale transitions with `conflict`. Identical
+requests reusing an account-scoped idempotency key return the original operation;
+different input with the same key returns `conflict`.
+
+Internal delivery identities, source tracking, recovery and result deduplication
+follow [application-owned messaging](ARCHITECTURE.md#application-owned-messaging).
+Upload modes converge on the same canonical manifest under the
+[upload and validation flow](ARCHITECTURE.md#upload-and-validation-flow).
 
 ## Error behavior
 
@@ -130,18 +141,8 @@ Record safe audit events for:
 - Version preview.
 - Rollback.
 
-Audit records must not contain plaintext API keys, passwords, secrets, or full
-sensitive payloads.
-
-## Lifecycle and concurrency
-
-- Deployment status follows the states defined in `ARCHITECTURE.md`.
-- State-changing requests must reject stale transitions with a safe `conflict`
-  response.
-- Reusing a submission idempotency key with identical input returns the
-  original deployment; reusing it with different input returns `conflict`.
-- Publication integrity and concurrency follow
-  [Architecture](ARCHITECTURE.md#deployment-lifecycle).
+Apply [logging and audit controls](SECURITY.md#logging-monitoring-and-response)
+and [message identity controls](SECURITY.md#messaging-integrity).
 
 Future scope is tracked in [Product requirements](PRODUCT_REQUIREMENTS.md#out-of-scope-for-v1).
 Permanent public preview URLs are outside V1.

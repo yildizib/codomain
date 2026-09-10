@@ -81,13 +81,49 @@ publication. Lifecycle mechanics are defined in [Architecture](ARCHITECTURE.md).
   metadata, private network services, or other tenants.
 - Use safe content-disposition and content-type handling when serving files.
 
+### Isolated scanning
+
+- Freeze upload input before validation. Reject traversal, symbolic/hard links,
+  special files, duplicate normalized paths and unsafe archive expansion.
+- Run archive parsing and ClamAV scanning with bounded CPU, memory, disk and time,
+  no platform credentials, and access limited to the current job input. Do not
+  execute customer code. Restrict network access; isolate signature updating.
+- Scan all content that will be served. Scanning limits, timeout, unreadable or
+  encrypted archives and stale signatures must never be interpreted as clean.
+  Define numeric limits/freshness policy before implementation and align them
+  with upload limits. Infrastructure failure blocks preview and may be retried.
+- Record scan engine/signature identity, time, outcome and artifact digest.
+  Ensure scanned bytes cannot change before sealing, approval or delivery.
+- ClamAV is a layer, not a guarantee against phishing, external scripts or abuse.
+  Keep isolation and takedown controls regardless of scan success. Define later
+  rescan handling without mutating retained versions; disable access if needed.
+- Do not expose the scanner socket or NFS to public networks. Mount only sealed
+  content read-only on Nginx; never mount quarantine on the content VPS.
+
+## Messaging integrity
+
+- Restrict application DB roles to SELECT/INSERT on outbox and delivery-journal
+  tables; no UPDATE or DELETE through normal application roles. A future
+  administrative retention policy requires an explicit decision.
+- Authenticate producers and consumers to MQ, restrict queue/topic permissions,
+  validate message schemas and source identity, and recheck ownership and valid
+  lifecycle transitions before effects. A forged payload actor is not authority.
+- Preserve account/key identity and correlation metadata without raw credentials
+  or capability secrets in logs. Protect sensitive message payloads.
+- Revocation must not rely solely on delayed account-event delivery. Define and
+  enforce authorization freshness for queued approval/publication/rollback work
+  before implementation so stale credentials cannot bypass revocation.
+
 ## Preview and publishing integrity
 
 - Serve previews and published user content from content-plane origins that do
   not share the dashboard's registrable domain, origin, or session cookies.
 - Keep dashboard cookies host-only and use the `__Host-` prefix where supported.
 - Do not expose secrets or internal service endpoints to previewed sites.
-- Require an explicit, authenticated user approval for every publication.
+- Require explicit user approval for publication, with approval/publication and
+  rollback requests entering through authenticated MCP rather than Dashboard.
+  Define the human-confirmation proof before implementing these operations; an
+  authenticated API key or client-supplied boolean alone is not proof of review.
 - Bind approval to the sealed artifact's manifest digest; approval must not
   silently apply to changed, newer, or different content.
 - Make versions immutable after creation.

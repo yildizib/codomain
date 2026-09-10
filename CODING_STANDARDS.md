@@ -1,7 +1,8 @@
 # Coding Standards
 
 Applies to code, tests, scripts, configuration, and generated output. These
-rules are framework-neutral until the implementation stack is selected.
+rules remain framework-independent; Java / Spring Boot application boundaries
+are defined in [Architecture](ARCHITECTURE.md).
 
 ## Design and organization
 

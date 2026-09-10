@@ -26,6 +26,15 @@ has started. Add a new record that identifies the earlier decision as
 superseded. The edits made on 2026-09-10 clarified this initial, unimplemented
 baseline before this governance rule took effect.
 
+## Current decision precedence
+
+[ADR-011](docs/decisions/ADR-011.md) supersedes ADR-004's Dashboard approval and
+MCP publication prohibition. Its artifact-bound approval guarantees remain.
+ADR-011 also refines interaction references in ADR-007/010 without weakening
+content isolation. ADR-012 extends ADR-009 with durable messaging, and ADR-013
+refines ADR-005 storage/retention. Earlier accepted text is retained as history;
+use these newer records wherever the earlier descriptions conflict.
+
 ## Records
 
 - [ADR-001: Use MCP as the boundary between external AI agents and Codomain](docs/decisions/ADR-001.md)
@@ -38,3 +47,7 @@ baseline before this governance rule took effect.
 - [ADR-008: Keep V1 runtime static-site only](docs/decisions/ADR-008.md)
 - [ADR-009: Model deployment and publication as explicit state machines](docs/decisions/ADR-009.md)
 - [ADR-010: Use time-limited capability URLs for isolated previews](docs/decisions/ADR-010.md)
+
+- [ADR-011: Route all site operations through MCP](docs/decisions/ADR-011.md)
+- [ADR-012: Use Spring Boot applications with application-owned MQ delivery](docs/decisions/ADR-012.md)
+- [ADR-013: Store validated artifacts on NFS and serve through separate Nginx](docs/decisions/ADR-013.md)

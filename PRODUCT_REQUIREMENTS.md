@@ -27,8 +27,8 @@ V1 does not include:
 - White-label publishing.
 - Direct AI-agent publication without explicit user approval.
 - Account self-deletion.
-- Dynamic server-side execution, databases, background workers, and serverless
-  functions.
+- Customer-provided dynamic server-side execution, databases, background workers,
+  and serverless functions.
 
 ## Getting started
 
@@ -81,8 +81,9 @@ the subsequent publishing journey.
 
 ### Dashboard
 
-- The dashboard must show site information, free subdomain, preview URL,
-  published URL, deployment history, version history, and rollback controls.
+- The dashboard must provide account and access management only. It must not
+  initiate deployment, preview, approval, publication, rollback or version
+  management. Site status and history are exposed through MCP.
 - The dashboard must show MCP connection details.
 - The dashboard must provide a downloadable generated
   `CODOMAIN_MCP_README.md` with safe MCP usage instructions and secret
@@ -114,33 +115,58 @@ the subsequent publishing journey.
 
 - The system must generate a preview URL before publication.
 - The preview must represent a specific deployment or version.
-- A deployment artifact must be sealed before preview and identified by a
-  deterministic manifest digest.
+- The system must allow preview creation/renewal and previous-version preview
+  requests through MCP.
+- Previewed content must be fixed before review and must not change afterward.
 - Preview URLs must be time-limited, revocable capability URLs served from an
   origin isolated from the dashboard.
-- The system must require explicit authenticated user approval before
-  publication.
-- Approval must be bound to the exact sealed artifact digest being approved.
+- Approval, publication and rollback must be requested through authenticated
+  MCP operations, never dashboard actions. Explicit user approval remains
+  required; the mechanism for proving it through MCP is unresolved and must be
+  selected before implementation. An API key alone does not prove human review.
+- Approval must apply only to the exact content the user reviewed.
 - A newer or different deployment must require a separate approval.
 
 ### Versioning and publishing
 
-- Approval of a sealed deployment must create an immutable version that retains
-  the approved manifest digest.
+- Approval must create an immutable version of the reviewed content.
 - Published state must point to an immutable version.
 - Every publish attempt must create an auditable publication record separate
   from the version.
 - The system must keep deployment and version history.
-- The system must show the current published version.
+- The system must expose the current published version and deployment/version
+  history through MCP.
 - Failed publication must not replace the previously published version.
 
 ### Rollback
 
-- The system must allow the user to preview a previous version.
-- The system must allow rollback to a previous immutable version.
-- Rollback must update the published version pointer without rewriting the
-  selected version's contents.
+- The system must allow MCP-originated rollback to a previous immutable version.
+- Rollback must restore the selected version without changing its contents.
 - Rollback must create a publication record and must not create a new version.
+
+### Processing reliability
+
+- MCP must support controlled large-file uploads.
+- Submitted content must pass validation and isolated malware scanning before
+  preview becomes available. Incomplete scanning must not count as success.
+- Accepted operations must survive service interruptions and support safe retries
+  without duplicate deployments, versions or publications.
+- MCP must expose operation progress, attempts, safe errors and success. Operation
+  history must retain the originating application and initiating identity.
+- Request acceptance must be distinguishable from successful completion.
+
+Implementation is defined in [application-owned messaging](ARCHITECTURE.md#application-owned-messaging)
+and [upload processing](ARCHITECTURE.md#upload-and-validation-flow).
+
+### Retention and archive
+
+- Keep the last 10 temporary deployment contents; do not automatically delete
+  approved versions. Per-site unversioned scope is proposed, pending confirmation.
+- Cleanup must protect active work and content retained by a version. Expiring
+  temporary files must preserve deployment history and report preview unavailability.
+- Archive behavior remains under evaluation and does not authorize version deletion.
+
+See [storage and cleanup mechanics](ARCHITECTURE.md#retention-and-archive).
 
 ## Quality requirements
 
@@ -175,13 +201,18 @@ Operational and security telemetry should separately track:
 - Should free subdomains be user-selected, generated, or both?
 - What file size, file count, and total deployment limits should V1 enforce?
 - What static file types should be accepted by default?
-- What is the permanent private security contact?
-- What retention period should deployment files, versions, previews, and audit
-  records use?
-- Which exact MCP transport and client configuration formats will V1 support?
+- Confirm the scope of the last-10 temporary-content policy; define quarantine
+  and preview expiry while retaining approved versions.
+- What archive behavior should MCP expose?
+- How is explicit human approval established through MCP?
+- What live-site availability and recovery objectives should V1 meet?
 - Will V1 require email verification and password-reset flows before launch?
 - What expiration duration and regeneration rules will preview capability URLs
   use?
 - What maximum propagation delay is acceptable for API key revocation and
   rotation?
 - What additional consent, if any, does the sketch's “Other Conditions” mean?
+
+Technical choices are tracked in [Architecture](ARCHITECTURE.md#remaining-implementation-decisions)
+and [MCP design](MCP_DESIGN.md#connection-details). Security reporting is defined
+in [Security](SECURITY.md#reporting-a-vulnerability).
