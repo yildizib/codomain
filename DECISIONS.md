@@ -18,6 +18,7 @@ in a new ADR and add explicit supersession links. Operational rules belong in
 | [ADR-014](docs/decisions/ADR-014.md) | Selects hosted Spring AI WebMVC Streamable HTTP for V1 MCP transport. |
 | [ADR-015](docs/decisions/ADR-015.md) | Selects agent-mediated, challenge-bound human confirmation without a Dashboard step. |
 | [ADR-016](docs/decisions/ADR-016.md) | Selects portable ClamAV integration and application-neutral mounted artifact paths. |
+| [ADR-017](docs/decisions/ADR-017.md) | Completes ADR-012 with the V1 runtime versions, Liquibase/PostgreSQL layout, standalone Artemis and Long identity contract. |
 
 Earlier records remain historical evidence where newer decisions supersede them.
 Accepted records may include explicitly labeled proposals; those proposals are
@@ -41,3 +42,4 @@ not selected technology or product behavior.
 - [ADR-014: Use Streamable HTTP for the hosted MCP server](docs/decisions/ADR-014.md)
 - [ADR-015: Use agent-mediated explicit confirmation for site actions](docs/decisions/ADR-015.md)
 - [ADR-016: Use portable ClamAV scanning and mounted artifact paths](docs/decisions/ADR-016.md)
+- [ADR-017: Fix the V1 runtime, messaging, migration, and identity baseline](docs/decisions/ADR-017.md)

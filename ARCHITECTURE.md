@@ -37,9 +37,30 @@ flowchart TB
   V["Site visitors"] --> N
 ```
 
-The database box represents logical ownership, not a selected server/schema
-layout. Account events reach relevant consumers; Worker does not consume every
+The PostgreSQL box is one cluster with a small shared platform schema and
+application-owned schemas. Separate least-privilege runtime roles protect each
+application's domain tables. All applications may allocate identifiers from the
+shared `platform.global_id_seq`; that grant does not authorize cross-schema domain
+access. Account events reach relevant consumers; Worker does not consume every
 Dashboard event. NFS access does not make all stored artifacts publicly accessible.
+
+## Runtime baseline
+
+V1 uses Java 21, Spring Boot 4.1.1, Spring Framework 7.x, Spring AI 2.0.1 and the
+Gradle 9.7.1 wrapper. Spring Boot dependency management owns Spring Framework,
+Liquibase and common runtime dependencies. The Spring AI BOM owns the MCP Java
+SDK. Do not override BOM-managed transitive versions without a later accepted
+compatibility decision.
+
+Liquibase owns ordered migrations for the shared foundation objects and each
+application schema. Migration roles apply DDL; normal runtime roles do not hold
+DDL privileges. Applied changesets are not rewritten. Migration validation must
+cover an empty database and supported upgrades once a prior runtime schema exists.
+
+Database identifiers use PostgreSQL `BIGINT` and Java `long`/`Long`. MCP/JSON
+serializes them as decimal strings so JavaScript clients do not lose precision.
+Shared sequence values are globally unique but intentionally not gapless,
+chronological, secret or authoritative for access control.
 
 ## Application ownership
 
@@ -116,7 +137,7 @@ sequenceDiagram
   participant W as Worker
   participant WD as Worker database
   App->>DB: Commit business intent and outbox INSERT together
-  App->>MQ: Send app-name:outboxId
+  App->>MQ: Send eventId and immutable payload
   MQ-->>App: Broker confirmation
   App->>DB: Append delivery confirmation
   MQ->>W: Deliver message
@@ -132,16 +153,33 @@ sequenceDiagram
 - All outboxes are insert-only, including Worker results. Attempts, errors and
   confirmations go in a separate append-only journal. Inbox/job and domain state
   may change; normal application roles cannot update or delete outbox rows.
-- Delivery can repeat. Preserve `app-name:outboxId` and payload across retries;
-  use a stable logical app name and globally unique outbox ID, not a replica name.
+- Delivery can repeat. Preserve the global `eventId` and immutable payload across
+  retries. Record `sourceApplication` separately using the stable logical
+  application name, not a replica name.
 - Worker owns durable, shared inbox/job storage and records it before ACK.
   Recover interrupted jobs and deduplicate effects, including file operations.
 - Preserve source, actor, operation and related-message identities with safe
-  attempt/error history. Result consumers deduplicate and reject stale updates.
-- Request idempotency is separate from message identity. MQ carries bounded
-  metadata and file references, never uploaded bytes or raw credentials.
+  attempt/error history. `operationId` identifies the business operation;
+  `eventId` uniquely identifies one outbox/MQ event; optional
+  `causationEventId` links a follow-up event to its cause. An operation may emit
+  multiple independently deduplicated events. Result consumers deduplicate by
+  `eventId` and reject stale updates.
+- Request idempotency is separate from message identity. Store the client key
+  under `(accountId, operationType, idempotencyKey)` with a normalized request
+  fingerprint and resulting `operationId`. Identical retries return the original
+  operation; changed input conflicts. MQ carries bounded metadata and file
+  references, never uploaded bytes or raw credentials.
 
-[ADR-012](docs/decisions/ADR-012.md) retains the detailed messaging decision.
+V1 uses standalone Apache ActiveMQ Artemis 2.42.0 as a single broker node with a
+disk-backed persistent journal, durable queues/messages and explicit consumer
+acknowledgement after durable inbox/job acceptance. Artemis runs separately from
+the applications; embedded mode is not used. The outbox and inbox are the durable
+application records, while MQ is transport. Broker outage leaves committed
+outbox events pending for recovery. V1 does not promise broker high availability.
+
+[ADR-012](docs/decisions/ADR-012.md) retains the application-owned messaging
+decision; [ADR-017](docs/decisions/ADR-017.md) selects its runtime, broker,
+migration and identity baseline.
 Broker confirmation means delivery acceptance, not completed business processing.
 
 ## Storage expectations
@@ -192,10 +230,10 @@ implementation. They do not block unrelated work or imply selected defaults.
 | Before working on | Resolve |
 | --- | --- |
 | Account and MCP integration | Remaining account policy details, verified Streamable HTTP client list, and credential-revocation propagation target. |
-| Messaging and Worker | Broker, DB ownership/layout, message contracts, retry/ordering policy and recoverable job execution. |
+| Messaging and Worker | Production role names/secret source, queue routing, retry/backoff limits, dead-letter policy, ordering policy and recoverable job execution. |
 | Upload and cleanup | Transfer protocol, limits, ClamAV signature policy, retention scope and archive behavior. |
 | Publication and operations | Live routing, publication/attempt records, availability, cache behavior, backups and audit/message retention. |
-| Runtime packaging | Container orchestration and exact Java/Spring versions. |
+| Runtime packaging | Production orchestration beyond the selected initial Compose path and resource sizing. |
 
 Keep current scope and guarantees in these overview documents. Use OpenSpec for
 schemas, protocols, detailed failure scenarios, acceptance tests and implementation

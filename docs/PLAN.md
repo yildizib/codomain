@@ -155,12 +155,15 @@ security or architecture consequences in an ADR.
 
 ### DG-02 Runtime and Persistence Baseline
 
-Resolve before runtime foundation implementation:
+V1 uses Java 21, Spring Boot 4.1.1, Spring Framework 7.x, Spring AI 2.0.1,
+Gradle 9.7.1 and Liquibase as recorded in
+[ADR-017](decisions/ADR-017.md). Spring Boot and Spring AI BOMs own their
+respective managed dependency versions. One PostgreSQL cluster contains a shared
+foundation schema, application-owned schemas and `platform.global_id_seq` for
+globally unique `BIGINT` operation/event IDs. Resolve the remaining deployment
+details before production deployment:
 
-- Exact supported Java and Spring Boot versions.
-- Gradle project/module structure and dependency-version strategy.
-- PostgreSQL ownership model: schemas/databases, service roles, migrations, and
-  transaction boundaries.
+- Exact production database role names and secret provider.
 - Development and production configuration strategy.
 - Docker Compose service topology for local and initial production operations.
 
@@ -200,9 +203,12 @@ Resolve before upload acceptance is exposed:
 
 ### DG-06 Messaging and Job Execution
 
-Resolve before asynchronous processing is implemented:
+V1 uses standalone single-node ActiveMQ Artemis 2.42.0 with a disk-backed
+persistent journal, durable queues/messages and explicit acknowledgement after
+durable inbox/job acceptance. Every cross-application event is committed to an
+insert-only outbox with business intent before MQ delivery. V1 does not promise
+broker HA. Resolve before asynchronous processing is implemented:
 
-- Message broker selection and supported version.
 - Stable application identities, queues/topics, routing, and dead-letter policy.
 - Message envelope schema and compatibility rules.
 - Retry limits, backoff, ordering, stale-result rejection, and poison-message
@@ -299,8 +305,8 @@ independently deployable Spring Boot applications.
 
 ### P1-T01 Establish the Gradle multi-project build
 
-- Define supported JDK, Gradle wrapper, Spring Boot, and dependency-management
-  versions.
+- Pin Java 21, Gradle 9.7.1, Spring Boot 4.1.1 and Spring AI 2.0.1; let the
+  Spring Boot and Spring AI BOMs own their managed transitive versions.
 - Include only intended modules: shared domain/application code where justified,
   Dashboard, MCP Server, Deployment Worker, and test-support modules if needed.
 - Prevent framework dependencies from leaking into domain modules.
@@ -325,10 +331,14 @@ unsafe or incomplete production configuration.
 
 ### P1-T03 Establish PostgreSQL and migrations
 
-- Select migration tooling and migration ownership per application.
+- Use Liquibase with a shared foundation changelog and application-owned ordered
+  changesets; do not rewrite applied changesets.
 - Create service database roles with least privilege.
-- Define identifier, timestamp, optimistic-concurrency, and audit-column
-  conventions.
+- Create `platform.global_id_seq` and grant application roles sequence use
+  without cross-schema domain-table access.
+- Use PostgreSQL `BIGINT`, Java `long`/`Long`, and decimal-string MCP/JSON IDs;
+  treat sequence gaps as normal and IDs as opaque.
+- Define timestamp, optimistic-concurrency, and audit-column conventions.
 - Add initial schemas for accounts, sites, credentials, messaging, deployments,
   artifacts, previews, approvals, versions, publications, and jobs only as their
   owning changes are delivered.
@@ -339,8 +349,9 @@ and run under intended service roles.
 
 ### P1-T04 Create local infrastructure
 
-- Add Docker Compose services for PostgreSQL, the selected broker, private file
-  storage mounts, scanner dependencies, and content Nginx as decisions permit.
+- Add Docker Compose services for PostgreSQL, standalone Artemis 2.42.0 with a
+  persistent journal volume, private file storage mounts, scanner dependencies,
+  and content Nginx as decisions permit.
 - Separate quarantine and sealed-artifact paths, mounts, and permissions.
 - Give content Nginx read-only access only to sealed content.
 - Add health checks, dependency ordering, named volumes, and sample environment
@@ -517,9 +528,11 @@ build pass.
 
 ### P4-T01 Define message envelopes and ownership
 
-- Specify schema version, message ID, source application, source outbox ID,
-  operation ID, actor identity, correlation/causation IDs, timestamp, type, and
+- Specify schema version, global `eventId`, global `operationId`, optional
+  `causationEventId`, source application, actor identity, timestamp, type, and
   bounded payload reference.
+- Allocate operation/event IDs from `platform.global_id_seq`; serialize them as
+  decimal strings at MCP/JSON boundaries.
 - Exclude uploaded bytes, credentials, preview secrets, and unsafe error details.
 - Define compatibility, validation, maximum size, and rejection behavior.
 - Assign queue/topic permissions to least-privilege service identities.
@@ -531,7 +544,8 @@ rejected safely and auditable identities survive the complete flow.
 
 - Insert business intent and outbox row in one database transaction.
 - Make outbox rows insert-only for normal service roles.
-- Send stable `app-name:outboxId` identities and preserve payload across retries.
+- Use the global `eventId` as the outbox/MQ identity, record
+  `sourceApplication` separately, and preserve event ID and payload across retries.
 - Record delivery attempts and broker confirmations in an append-only journal.
 - Recover unconfirmed messages at startup and periodically with bounded backoff.
 
@@ -540,7 +554,8 @@ or create a different logical message.
 
 ### P4-T03 Implement Worker inbox and durable jobs
 
-- Validate and deduplicate messages before effects.
+- Validate messages and deduplicate through an inbox unique constraint on
+  `eventId` before effects.
 - Commit inbox receipt and durable job before broker acknowledgement.
 - Separate job state from append-only attempt/error history.
 - Claim work safely across Worker replicas and recover abandoned claims.
@@ -566,6 +581,8 @@ user-visible effects.
 - Test duplicate, delayed, out-of-order, malformed, unauthorized, and poison
   messages.
 - Test broker outage and recovery without manual database edits.
+- Test Artemis restart with unacknowledged durable messages and prove one
+  operation can emit multiple independently deduplicated event IDs.
 - Verify database privileges prevent outbox mutation/deletion by normal roles.
 
 **Acceptance:** Messaging integration and recovery tests pass against the actual
@@ -1214,14 +1231,16 @@ The first implementation slice should be `implement-runtime-foundation` and
 should include only:
 
 1. DG-02 decisions and any required ADRs.
-2. The intentional Gradle module structure and supported versions.
-3. Configuration conventions and safe local profiles.
-4. PostgreSQL migration/test foundation.
-5. Docker Compose for dependencies required by that slice.
-6. A deployable separate-VPS Nginx path using a read-only sealed-content mount;
+2. Java 21, Gradle 9.7.1, Spring Boot 4.1.1 and Spring AI 2.0.1 BOM-managed build.
+3. The intentional Gradle module structure.
+4. Configuration conventions and safe local profiles.
+5. Liquibase, application schemas, shared global sequence and migration tests.
+6. Standalone persistent Artemis, transactional outbox, inbox deduplication and
+   broker-restart tests.
+7. A deployable separate-VPS Nginx path using a read-only sealed-content mount;
    storage provisioning remains operator-owned.
-7. CI commands for formatting, tests, migrations, and builds.
-8. Reconciliation of current prototype files without deleting unrelated work.
+8. CI commands for formatting, tests, migrations, and builds.
+9. Reconciliation of current prototype files without deleting unrelated work.
 
 After that slice passes its full validation, proceed to
 `implement-dashboard-account-access`. Do not start upload, preview, approval, or
