@@ -18,10 +18,10 @@ autonomous publication without user approval, and account self-deletion.
 
 ## Getting started
 
-Register and accept Terms, receive or choose a free subdomain, then use Dashboard
-to create an API key and configure an external AI client. Continue with the
-[publishing journey](README.md#how-it-works). Subdomain selection and account
-verification policies remain open.
+Register, verify the email address, accept Terms, and either choose an available
+free subdomain or accept an available generated suggestion. Then use Dashboard to
+create an API key and configure an external AI client. Continue with the
+[publishing journey](README.md#how-it-works).
 
 ## Requirements and acceptance
 
@@ -29,12 +29,18 @@ verification policies remain open.
 
 - Register with email, first name, last name and password; record accepted Terms
   version and timestamp before completing registration.
+- Require email verification for V1 and do not treat an unverified address as a
+  fully activated account.
 - Support sign-in, sign-out and password changes with protected sessions and
   defined session expiration/revocation behavior.
+- Support a secure, enumeration-resistant password-reset flow in V1.
 
 ### Site and subdomain
 
 - Create one account-owned site and one free subdomain, displayed in Dashboard.
+- Let the user either request an allowed subdomain or choose a generated
+  suggestion. Check availability for both paths at presentation and allocation
+  time; allocation is authoritative and race-safe.
 - Prevent cross-account access to site data, files, deployments, versions and previews.
 
 ### Dashboard
@@ -131,14 +137,12 @@ belongs in the corresponding implementation work; security monitoring follows
 ## Open questions
 
 - What is the final product domain and free subdomain pattern?
-- Should free subdomains be user-selected, generated, or both?
 - What file size, file count, and total deployment limits should V1 enforce?
 - What static file types should be accepted by default?
 - Confirm the scope of the last-10 temporary-content policy and quarantine expiry.
 - What archive behavior should MCP expose?
 - How is explicit human approval established through MCP?
 - What live-site availability and recovery objectives should V1 meet?
-- Will V1 require email verification and password-reset flows before launch?
 - What expiration duration and regeneration rules will preview capability URLs
   use?
 - What maximum propagation delay is acceptable for API key revocation and

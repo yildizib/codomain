@@ -89,9 +89,10 @@ requires a new deployment; transient processing failures may be retried safely.
 
 MCP accepts the deployment before content validation and owns large-file transfer.
 Finalized input is frozen in quarantine, validated and scanned in isolation.
-Only successfully checked content can be sealed and previewed. ClamAV is proposed,
-not selected; [scanning controls](SECURITY.md#isolated-scanning) apply regardless
-of engine. Transfer details belong in [MCP design](MCP_DESIGN.md#large-uploads-and-asynchronous-commands).
+Only successfully checked content can be sealed and previewed. V1 uses ClamAV
+behind a portable scanner interface, normally as a containerized sidecar/service;
+[scanning controls](SECURITY.md#isolated-scanning) still apply. Transfer details
+belong in [MCP design](MCP_DESIGN.md#large-uploads-and-asynchronous-commands).
 
 ### Publication and rollback
 
@@ -167,8 +168,10 @@ and the still-unconfirmed archive proposal.
 
 ## Runtime and content delivery
 
-Nginx runs on a separate VPS and mounts only sealed NFS content read-only; it
-never mounts quarantine. PostgreSQL uses its own durable storage, not NFS.
+Nginx runs on a separate VPS and mounts only sealed content read-only; it never
+mounts quarantine. Applications use configured POSIX filesystem paths and do not
+depend on NFS-specific APIs. The operator may provide those paths through NFS
+mounts. PostgreSQL uses its own durable storage, not the artifact mount.
 Control-plane and content-plane domains and privileges remain isolated under
 [Security](SECURITY.md#preview-and-publishing-integrity).
 
@@ -188,9 +191,9 @@ implementation. They do not block unrelated work or imply selected defaults.
 
 | Before working on | Resolve |
 | --- | --- |
-| Account and MCP integration | Product account policies, transport/client support, credential revocation and human-confirmation proof. |
+| Account and MCP integration | Remaining account policy details, verified Streamable HTTP client list, and credential-revocation propagation target. |
 | Messaging and Worker | Broker, DB ownership/layout, message contracts, retry/ordering policy and recoverable job execution. |
-| Upload and cleanup | Transfer protocol, limits, scanner/signature policy, retention scope and archive behavior. |
+| Upload and cleanup | Transfer protocol, limits, ClamAV signature policy, retention scope and archive behavior. |
 | Publication and operations | Live routing, publication/attempt records, availability, cache behavior, backups and audit/message retention. |
 | Runtime packaging | Container orchestration and exact Java/Spring versions. |
 

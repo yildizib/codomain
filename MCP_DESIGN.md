@@ -1,7 +1,7 @@
 # MCP Design
 
-The integration boundary and V1 capabilities. Exact tool names, request/response
-schemas and transport details will be designed in the relevant OpenSpec change.
+The integration boundary and V1 capabilities. Exact tool names and
+request/response schemas will be designed in the relevant OpenSpec change.
 
 ## Connection and authorization
 
@@ -9,6 +9,12 @@ An external AI client connects to the authenticated account's single site.
 Apply [API key authorization](SECURITY.md#api-keys-and-mcp-authorization) and resolve
 ownership server-side. MCP is the entry point for all site operations; execution
 follows [application ownership](ARCHITECTURE.md#application-ownership).
+
+V1 uses Spring AI's WebMVC MCP Server starter with Streamable HTTP. The remote
+endpoint is protected by the Codomain API-key security layer; the starter's
+transport endpoint is not assumed to provide authentication. Legacy HTTP/SSE is
+not a V1 transport. STDIO may be reconsidered as a future local adapter, not as
+the hosted V1 contract.
 
 ## Connection details
 
@@ -18,7 +24,9 @@ metadata and secret placeholders, and stays consistent with key rotation/revocat
 Users place the issued key in their client's secret store, not generated documents.
 
 See [Getting started](PRODUCT_REQUIREMENTS.md#getting-started) for account setup.
-Supported clients, transport and configuration formats remain implementation choices.
+V1 client support is limited to clients verified against the Streamable HTTP
+contract. Client-specific configuration formats remain to be verified and
+documented before launch.
 
 ## V1 capabilities
 
@@ -38,8 +46,11 @@ boundaries, not final tool names or permission to delete retained versions.
 Approval and publication are separate domain steps, even if a future tool combines
 them. Follow the [lifecycle](ARCHITECTURE.md#deployment-lifecycle) and
 [approval integrity controls](SECURITY.md#preview-and-publishing-integrity).
-Human-confirmation proof through MCP must be resolved before implementing these
-operations. [ADR-011](docs/decisions/ADR-011.md) records this boundary.
+The supported MCP client must show the preview identity and requested action and
+ask the user for explicit confirmation. Codomain verifies a short-lived,
+single-use challenge bound to the account, actor, artifact digest and action.
+Dashboard confirmation is not required. A bare client-supplied boolean is not a
+valid proof. [ADR-015](docs/decisions/ADR-015.md) records this decision.
 
 ## Large uploads and asynchronous commands
 

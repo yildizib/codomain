@@ -61,8 +61,8 @@ content types and content-disposition handling.
   validation succeeds; infrastructure failures may be retried.
 - Retain engine/signature identity, time, result and artifact digest. Scanned
   content must not change before sealing, approval or delivery.
-- ClamAV is proposed in [ADR-013](docs/decisions/ADR-013.md), not a final engine
-  selection. Antivirus never replaces isolation or abuse handling. Later rescans
+- V1 uses ClamAV through a portable scanner boundary as recorded in
+  [ADR-016](docs/decisions/ADR-016.md). Antivirus never replaces isolation or abuse handling. Later rescans
   may disable access but must not mutate retained versions.
 - Keep scanner interfaces and NFS private. Nginx may mount only sealed content
   read-only, never quarantine; other writers must also respect sealing.
@@ -85,9 +85,12 @@ Serve user content on origins and registrable domains separate from Dashboard,
 with no dashboard cookies, credentials or control-plane authority. Dashboard
 cookies remain host-only and use the `__Host-` prefix where supported.
 
-Explicit user approval must bind the exact sealed artifact digest. An API key or
-client-supplied boolean alone is not proof of human review; define the MCP
-confirmation mechanism before implementing approval/publication/rollback.
+Explicit user approval must bind the exact sealed artifact digest. The supported
+MCP client must present the preview identity and action to the user and obtain an
+explicit response. The server must require a short-lived, single-use challenge
+bound to the account, actor, artifact digest and action; an API key or bare
+client-supplied boolean alone is not proof of human review. Dashboard/session
+confirmation is not required for preview, approval, publication, or rollback.
 Preserve [immutable versions and publication guarantees](ARCHITECTURE.md#publication-and-rollback),
 including protection against changed content, races, retries and direct URL access.
 
