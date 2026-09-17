@@ -62,6 +62,11 @@ serializes them as decimal strings so JavaScript clients do not lose precision.
 Shared sequence values are globally unique but intentionally not gapless,
 chronological, secret or authoritative for access control.
 
+Persist instants as PostgreSQL `timestamptz` and represent them as Java
+`Instant`, normalized to UTC at boundaries. Database uniqueness/check constraints
+enforce invariants; mutable aggregates use optimistic version columns, while
+outbox/job workers use bounded database row claiming for exclusive work.
+
 ## Application ownership
 
 | Application | Responsibility |

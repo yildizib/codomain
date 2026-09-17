@@ -45,6 +45,18 @@ Task states:
 - [x] D-010 Include separate-VPS Nginx deployment in the initial operational path.
 - [x] D-011 Treat artifact storage as configured POSIX paths; operators may mount
   NFS later without application-level NFS integration.
+- [x] D-022 Use Java 21, Spring Boot 4.1.1, Spring Framework 7.x, Spring AI
+  2.0.1, and Gradle 9.7.1. Let the Spring Boot and Spring AI BOMs own their
+  managed dependency versions.
+- [x] D-023 Use Liquibase with one PostgreSQL cluster, a shared foundation schema,
+  application-owned schemas, and a shared `platform.global_id_seq`.
+- [x] D-024 Use standalone single-node ActiveMQ Artemis 2.42.0 with a disk-backed
+  persistent journal and durable queues/messages; V1 does not promise broker HA.
+- [x] D-026 Use global positive `BIGINT` IDs from the shared sequence, Java
+  `long`/`Long`, and decimal-string MCP/JSON serialization. Use UTC `Instant` /
+  PostgreSQL `timestamptz`, database constraints for invariants, optimistic
+  version columns for mutable aggregates, and database row claiming for durable
+  work.
 
 ## 3. Remaining Blocking Decisions
 
@@ -69,12 +81,7 @@ Task states:
 
 ### Runtime and data
 
-- [ ] D-022 Select exact JDK, Spring Boot, Spring AI, MCP Java SDK, and Gradle
-  versions from compatible supported releases.
-- [ ] D-023 Select migration tool and database/schema ownership model.
-- [ ] D-024 Select message broker and supported version.
 - [ ] D-025 Define service/database roles and environment secret source.
-- [ ] D-026 Define UUID/time/concurrency conventions.
 
 ### MCP and credentials
 
@@ -160,8 +167,9 @@ Dependencies: P0-T01.
 
 Dependencies: P0-T01, P0-T02.
 
-- [ ] P0-T03-01 Complete D-022 through D-026.
-- [ ] P0-T03-02 Record significant runtime selections in ADRs.
+- [ ] P0-T03-01 Complete the remaining D-025 production role/secret decision.
+- [x] P0-T03-02 Record selected runtime, migration, broker and identity decisions
+  in ADR-017.
 - [ ] P0-T03-03 Update authoritative documents only where their owned behavior
   changes.
 - [ ] P0-T03-04 Revalidate Markdown links and OpenSpec artifacts.
@@ -173,8 +181,9 @@ Dependencies: P0-T01, P0-T02.
 
 Dependencies: P0-T03.
 
-- [ ] P1-T01-01 Add and pin the Gradle wrapper selected in D-022.
-- [ ] P1-T01-02 Define repositories and dependency versions centrally.
+- [ ] P1-T01-01 Add and pin Gradle wrapper 9.7.1.
+- [ ] P1-T01-02 Configure Java 21, Spring Boot 4.1.1 and Spring AI 2.0.1 BOMs;
+  do not override BOM-managed Spring Framework, Liquibase or MCP SDK versions.
 - [ ] P1-T01-03 Include only intentional modules in `settings.gradle`.
 - [ ] P1-T01-04 Configure Java toolchains for the selected JDK.
 - [ ] P1-T01-05 Configure JUnit Platform and deterministic test settings.
@@ -211,27 +220,37 @@ Dependencies: P1-T01.
 
 ### P1-T03 Establish database and migrations
 
-Dependencies: P1-T01, D-023, D-025, D-026.
+Dependencies: P1-T01 and D-025 for production role/secret finalization.
 
 - [ ] P1-T03-01 Provision local PostgreSQL with the selected version.
 - [ ] P1-T03-02 Create migration-owner and runtime roles.
 - [ ] P1-T03-03 Revoke runtime DDL privileges.
-- [ ] P1-T03-04 Define schema ownership per application.
-- [ ] P1-T03-05 Configure migration locations per owning application.
-- [ ] P1-T03-06 Add baseline migration and migration metadata conventions.
-- [ ] P1-T03-07 Add empty-database migration test.
-- [ ] P1-T03-08 Add prior-version upgrade migration test when the second migration
+- [ ] P1-T03-04 Create a shared `platform` schema and separate application-owned
+  schemas without cross-schema domain-table access.
+- [ ] P1-T03-05 Configure Liquibase changelog locations per owning application.
+- [ ] P1-T03-06 Add ordered baseline changesets and prohibit rewriting applied
+  changesets.
+- [ ] P1-T03-07 Create `platform.global_id_seq`; grant only required sequence
+  access to application roles.
+- [ ] P1-T03-08 Add central strict Long-to-decimal-string JSON serialization and
+  positive signed-64-bit parsing tests.
+- [ ] P1-T03-09 Add empty-database migration test.
+- [ ] P1-T03-10 Add prior-version upgrade migration test when the second migration
   is introduced.
-- [ ] P1-T03-09 Verify normal roles cannot alter immutable outbox/audit structures
+- [ ] P1-T03-11 Verify normal roles cannot alter immutable outbox/audit structures
   contrary to policy.
-- [ ] P1-T03-10 Document migration execution, rollback policy, and backup gate.
+- [ ] P1-T03-12 Verify sequence allocation is globally unique across applications,
+  accepts gaps after rollback, and grants no domain-table access.
+- [ ] P1-T03-13 Document migration execution, rollback policy, and backup gate.
 
 ### P1-T04 Create local runtime topology
 
-Dependencies: P1-T02, P1-T03, D-024.
+Dependencies: P1-T02 and P1-T03.
 
 - [ ] P1-T04-01 Add Docker Compose PostgreSQL service with health check.
-- [ ] P1-T04-02 Add selected message-broker service with health check.
+- [ ] P1-T04-02 Add standalone ActiveMQ Artemis 2.42.0 with health check,
+  persistent journal volume, durable queues/messages, explicit ACK, redelivery,
+  dead-letter and expiry configuration; do not use embedded mode.
 - [ ] P1-T04-03 Add ClamAV service with private networking and signature storage.
 - [ ] P1-T04-04 Create separate local quarantine and sealed-artifact volumes.
 - [ ] P1-T04-05 Mount quarantine only into MCP Server/Worker roles that require it.
@@ -478,12 +497,13 @@ Phase exit:
 
 ### P4-T01 Define message contracts
 
-Dependencies: P1, D-024, D-026.
+Dependencies: P1.
 
 - [ ] P4-T01-01 Define envelope schema version and content type.
-- [ ] P4-T01-02 Define globally unique message ID and stable source outbox ID.
-- [ ] P4-T01-03 Include source app, operation, actor, correlation, causation, type,
-  creation time, and bounded payload reference.
+- [ ] P4-T01-02 Define global `eventId` as both immutable outbox row ID and MQ
+  delivery identity; serialize it as a decimal string externally.
+- [ ] P4-T01-03 Include global `operationId`, optional `causationEventId`, source
+  application, actor, type, UTC creation time, and bounded payload reference.
 - [ ] P4-T01-04 Define maximum size and schema validation.
 - [ ] P4-T01-05 Exclude bytes, API keys, capability tokens, password/reset tokens,
   and unsafe errors.
@@ -495,7 +515,8 @@ Dependencies: P1, D-024, D-026.
 - [ ] P4-T02-01 Create insert-only outbox table and append-only delivery journal.
 - [ ] P4-T02-02 Enforce normal-role INSERT/SELECT without UPDATE/DELETE on outbox.
 - [ ] P4-T02-03 Commit domain intent and outbox insert together.
-- [ ] P4-T02-04 Send stable message identity/payload.
+- [ ] P4-T02-04 Allocate `eventId` from `platform.global_id_seq` and preserve that
+  ID and canonical payload across every delivery retry.
 - [ ] P4-T02-05 Record each delivery attempt and broker confirmation.
 - [ ] P4-T02-06 Recover unconfirmed rows at startup and on schedule.
 - [ ] P4-T02-07 Apply bounded exponential backoff and jitter.
@@ -505,7 +526,8 @@ Dependencies: P1, D-024, D-026.
 ### P4-T03 Implement Worker inbox and durable jobs
 
 - [ ] P4-T03-01 Validate producer identity and envelope schema.
-- [ ] P4-T03-02 Deduplicate by stable message identity.
+- [ ] P4-T03-02 Deduplicate through a durable inbox unique constraint on
+  `eventId`.
 - [ ] P4-T03-03 Commit inbox and durable job before ACK.
 - [ ] P4-T03-04 Define queued, claimed, running, retry-wait, succeeded, failed, and
   cancelled/enforcement states as approved.
@@ -534,6 +556,10 @@ Dependencies: P1, D-024, D-026.
   oversized, and poison messages.
 - [ ] P4-T05-08 Test broker outage and restart recovery.
 - [ ] P4-T05-09 Verify DB privileges for outbox/journal immutability.
+- [ ] P4-T05-10 Test one `operationId` producing multiple unique event IDs with
+  correct `causationEventId` links.
+- [ ] P4-T05-11 Test duplicate Artemis delivery creates one inbox/job/business
+  effect.
 
 ## 9. Phase 5 - MCP Foundation
 
